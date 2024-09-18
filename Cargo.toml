@@ -1,0 +1,15 @@
+[package]
+name = "lme"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+nalgebra = { version = "*", features = ["serde-serialize"] }
+rayon = "1.10.0"
+tokio = { version = "1.40.0", features = ["full"] }
+axum = "0.7.5"
+
+[[bin]]
+name = "lme_server"
+path = "src/server/main.rs"
