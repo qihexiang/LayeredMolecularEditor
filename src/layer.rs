@@ -42,6 +42,12 @@ pub enum Layer {
     },
 }
 
+impl Default for Layer {
+    fn default() -> Self {
+        Self::Fill { data: Default::default() }
+    }
+}
+
 impl Layer {
     pub fn filter(&self, mut current: MoleculeLayer) -> Result<MoleculeLayer, SelectOne> {
         match self {

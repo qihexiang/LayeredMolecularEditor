@@ -1,32 +1,35 @@
-use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
+use std::{collections::BTreeMap, ops::Range};
 
-use crate::{chemistry::MoleculeLayer, layer::{Layer, SelectOne}};
+use crate::{
+    chemistry::MoleculeLayer,
+    layer::{Layer, SelectOne},
+};
 
 #[derive(Debug, Clone, Deserialize, Serialize, Default)]
-pub struct StackStorage {
+pub struct StackCache {
     cache: Option<MoleculeLayer>,
-    children: Box<BTreeMap<String, StackStorage>>,
+    children: Box<BTreeMap<usize, StackCache>>,
 }
 
-impl StackStorage {
-    pub fn read_stack(&self, path: Vec<String>) -> Option<&MoleculeLayer> {
+impl StackCache {
+    pub fn read_cache(&self, path: &[usize]) -> Option<&MoleculeLayer> {
         if let Some((head, nexts)) = path.split_first() {
             let next_stack = self.children.get(head)?;
-            next_stack.read_stack(nexts.to_vec())
+            next_stack.read_cache(nexts)
         } else {
             self.cache.as_ref()
         }
     }
 
-    pub fn write_stack(&mut self, path: Vec<String>, stack_data: MoleculeLayer) {
+    pub fn write_cache(&mut self, path: &[usize], stack_data: MoleculeLayer) {
         if let Some((head, nexts)) = path.split_first() {
             if let Some(next_stack) = self.children.get_mut(head) {
-                next_stack.write_stack(nexts.to_vec(), stack_data);
+                next_stack.write_cache(nexts, stack_data);
             } else {
-                let mut next_stack = StackStorage::default();
-                next_stack.write_stack(nexts.to_vec(), stack_data);
-                self.children.insert(head.to_string(), next_stack);
+                let mut next_stack = StackCache::default();
+                next_stack.write_cache(nexts, stack_data);
+                self.children.insert(*head, next_stack);
             }
         } else {
             self.cache = Some(stack_data);
@@ -34,29 +37,57 @@ impl StackStorage {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct Workspace {
-    layers: BTreeMap<String, Layer>,
-    stacks: StackStorage,
+#[derive(Default)]
+pub struct LayerStorage {
+    layers: BTreeMap<usize, Layer>,
 }
 
-pub enum WorkspaceError {
-    NoSuchLayer(String),
-    SelectError(SelectOne),
+#[derive(Serialize)]
+pub enum LayerStorageError {
+    NoSuchLayer(usize),
+    FilterError(SelectOne),
 }
 
-impl Workspace {
-    pub fn export_stack(&self, stack: Vec<&String>) -> Result<MoleculeLayer, WorkspaceError> {
-        let mut molecule_layer = MoleculeLayer::default();
-        for layer in stack {
-            let layer = self
-                .layers
-                .get(layer)
-                .ok_or(WorkspaceError::NoSuchLayer(layer.to_string()))?;
-            molecule_layer = layer
-                .filter(molecule_layer)
-                .map_err(|select| WorkspaceError::SelectError(select))?;
+impl LayerStorage {
+    fn next_layer_id(&self) -> usize {
+        self.layers.keys().max().copied().unwrap_or_default() + 1
+    }
+
+    pub fn layer_ids(&self) -> impl Iterator<Item = &usize> {
+        self.layers.keys()
+    }
+
+    pub fn create_layers<I>(&mut self, layers: I) -> Range<usize>
+    where
+        I: Iterator<Item = Layer>,
+    {
+        let start_id = self.next_layer_id();
+        for (idx, layer) in layers.enumerate() {
+            self.layers.insert(start_id + idx, layer);
         }
-        Ok(molecule_layer)
+        start_id..self.next_layer_id()
+    }
+
+    pub fn remove_layer(&mut self, layer_id: &usize) -> Option<Layer> {
+        self.layers.remove(layer_id)
+    }
+
+    pub fn read_stack(
+        &self,
+        stack_path: &[usize],
+        mut base: MoleculeLayer,
+    ) -> Result<MoleculeLayer, LayerStorageError> {
+        for layer_id in stack_path {
+            base = self
+                .layers
+                .get(layer_id)
+                .ok_or(LayerStorageError::NoSuchLayer(*layer_id))
+                .and_then(|layer| {
+                    layer
+                        .filter(base)
+                        .map_err(|select| LayerStorageError::FilterError(select))
+                })?;
+        }
+        Ok(base)
     }
 }

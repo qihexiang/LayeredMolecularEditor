@@ -4,7 +4,7 @@ use axum::{
     Router,
 };
 use handlers::{create_workspace, get_layers, read_stack, remove_workspace};
-use lme::workspace::Workspace;
+use lme::workspace::{StackCache, LayerStorage};
 use middlewares::workspace_middleware;
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, sync::Arc};
@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 mod handlers;
 mod middlewares;
 
-pub type AppState = Arc<RwLock<BTreeMap<String, Arc<RwLock<Workspace>>>>>;
+pub type AppState = Arc<RwLock<BTreeMap<String, (Arc<RwLock<LayerStorage>>, Arc<RwLock<BTreeMap<String, Vec<usize>>>>, Arc<RwLock<StackCache>>)>>>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct WorkspaceName {
