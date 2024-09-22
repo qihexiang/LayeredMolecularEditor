@@ -1,31 +1,35 @@
 use axum::{
-    middleware, routing::{delete, post}, Router
+    middleware,
+    routing::{delete, get, post},
+    Router,
 };
-use handlers::{create_workspace, remove_workspace};
+use handlers::{create_workspace, get_layers, read_stack, remove_workspace};
 use lme::workspace::Workspace;
 use middlewares::workspace_middleware;
 use serde::{Deserialize, Serialize};
-use std::{
-    collections::BTreeMap,
-    sync::{Arc, Mutex},
-};
+use std::{collections::BTreeMap, sync::Arc};
 use tokio::sync::RwLock;
 
 mod handlers;
 mod middlewares;
 
-pub type AppState = Arc<RwLock<BTreeMap<String, Arc<Mutex<Workspace>>>>>;
+pub type AppState = Arc<RwLock<BTreeMap<String, Arc<RwLock<Workspace>>>>>;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct WorkspaceName {
-    name: String
+    name: String,
 }
 
 #[tokio::main]
 async fn main() {
     let server_state: AppState = Default::default();
     let workspace_router = Router::new()
-        .layer(middleware::from_fn_with_state(server_state.clone(), workspace_middleware));
+    .route("/layers", get(get_layers))
+    .route("/stack", get(read_stack))
+    .layer(middleware::from_fn_with_state(
+        server_state.clone(),
+        workspace_middleware,
+    ));
     let app = Router::new()
         .nest("/workspace/:name", workspace_router)
         .route("/create_workspace", post(create_workspace))
