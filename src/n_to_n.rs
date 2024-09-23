@@ -1,7 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::collections::hash_set::IntoIter;
 use std::collections::HashSet;
 use std::hash::Hash;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct NtoN<L: Eq + Hash, R: Eq + Hash>(HashSet<(L, R)>);
@@ -43,7 +43,7 @@ impl<L: Sync + Send + Eq + Hash + Clone, R: Sync + Send + Eq + Hash + Clone> Nto
         self.data_mut().insert((left, right))
     }
 
-    pub fn insert_left<T: Iterator<Item = R>>(&mut self, left: L, rights:T) {
+    pub fn insert_left<T: Iterator<Item = R>>(&mut self, left: L, rights: T) {
         let rights = rights.into_iter().map(|right| (left.clone(), right));
         self.data_mut().extend(rights);
     }
