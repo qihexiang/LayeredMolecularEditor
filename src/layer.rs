@@ -1,28 +1,23 @@
 use std::collections::{BTreeSet, HashMap};
 
+use crate::{
+    chemistry::{Atom3D, MoleculeLayer},
+    n_to_n::NtoN,
+};
 use nalgebra::{Isometry3, Point3, Translation3, Vector3};
-use serde::{Serialize, Deserialize};
-use crate::{chemistry::{Atom3D, MoleculeLayer}, n_to_n::NtoN};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Layer {
-    Fill {
-        data: MoleculeLayer,
-    },
+    Fill(MoleculeLayer),
     Plugin {
         plugin_name: String,
         arguments: Vec<String>,
         data: MoleculeLayer,
     },
-    IdMap {
-        data: HashMap<String, usize>,
-    },
-    GroupMap {
-        data: NtoN<String, usize>,
-    },
-    SetCenter {
-        select: SelectOne,
-    },
+    IdMap(HashMap<String, usize>),
+    GroupMap(NtoN<String, usize>),
+    SetCenter(SelectOne),
     Translation {
         select: SelectMany,
         vector: Vector3<f64>,
@@ -37,25 +32,23 @@ pub enum Layer {
         select: SelectMany,
         isometry: Isometry3<f64>,
     },
-    RemoveAtoms {
-        select: SelectMany,
-    },
+    RemoveAtoms(SelectMany),
 }
 
 impl Default for Layer {
     fn default() -> Self {
-        Self::Fill { data: Default::default() }
+        Self::Fill(Default::default())
     }
 }
 
 impl Layer {
     pub fn filter(&self, mut current: MoleculeLayer) -> Result<MoleculeLayer, SelectOne> {
         match self {
-            Self::Fill { data } => current.migrate(data),
-            Self::IdMap { data } => current.ids.extend(data.clone()),
-            Self::GroupMap { data } => current.groups.extend(data.clone()),
+            Self::Fill(data) => current.migrate(data),
+            Self::IdMap(data) => current.ids.extend(data.clone()),
+            Self::GroupMap(data) => current.groups.extend(data.clone()),
             Self::Plugin { data, .. } => current.migrate(data),
-            Self::SetCenter { select } => {
+            Self::SetCenter(select) => {
                 let target_atom = select
                     .to_index(&current)
                     .and_then(|index| current.atoms.read_atom(index));
@@ -109,7 +102,7 @@ impl Layer {
                     .atoms
                     .isometry(*isometry, &select.to_indexes(&current));
             }
-            Self::RemoveAtoms { select } => {
+            Self::RemoveAtoms(select) => {
                 let selected = select.to_indexes(&current);
                 let atoms = (0..current.atoms.len())
                     .map(|index| {
