@@ -19,12 +19,12 @@ impl<L: Sync + Send + Eq + Hash + Clone, R: Sync + Send + Eq + Hash + Clone> Nto
         &mut self.0
     }
 
-    pub fn get_lefts(&self) -> impl Iterator<Item = &L> {
-        self.data().iter().map(|(l, _)| l)
+    pub fn get_lefts(&self) -> HashSet<&L> {
+        self.data().iter().map(|(l, _)| l).collect()
     }
 
-    pub fn get_rights(&self) -> impl Iterator<Item = &R> {
-        self.data().iter().map(|(_, r)| r)
+    pub fn get_rights(&self) -> HashSet<&R> {
+        self.data().iter().map(|(_, r)| r).collect()
     }
 
     pub fn get_left<'a>(&'a self, left: &'a L) -> impl Iterator<Item = &R> {
@@ -43,12 +43,18 @@ impl<L: Sync + Send + Eq + Hash + Clone, R: Sync + Send + Eq + Hash + Clone> Nto
         self.data_mut().insert((left, right))
     }
 
-    pub fn insert_left<T: Iterator<Item = R>>(&mut self, left: L, rights: T) {
+    pub fn insert_left<T>(&mut self, left: L, rights: T)
+    where
+        T: Iterator<Item = R>,
+    {
         let rights = rights.into_iter().map(|right| (left.clone(), right));
         self.data_mut().extend(rights);
     }
 
-    pub fn insert_right<T: Iterator<Item = L>>(&mut self, right: R, lefts: T) {
+    pub fn insert_right<T>(&mut self, right: R, lefts: T)
+    where
+        T: Iterator<Item = L>,
+    {
         let lefts = lefts.into_iter().map(|left| (left, right.clone()));
         self.data_mut().extend(lefts);
     }
