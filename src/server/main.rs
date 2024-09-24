@@ -1,10 +1,10 @@
 use axum::{
     middleware,
-    routing::{delete, get, post},
+    routing::{delete, get, post, put},
     Router,
 };
 use handlers::{
-    create_layers, create_stack, create_workspace, get_layers, read_stack, remove_workspace,
+    add_layers, clone_stacks, create_layers, create_stack, create_workspace, export_workspace, get_layers, read_stack, remove_workspace, slice_stack
 };
 use lme::workspace::{LayerStorage, StackCache};
 use middlewares::workspace_middleware;
@@ -40,7 +40,11 @@ async fn main() {
         .route("/stacks/new", post(create_stack))
         .route("/layers/new", post(create_layers))
         .route("/layers", get(get_layers))
-        .route("/stacks/:name", get(read_stack))
+        .route("/stacks/:stack_name", get(read_stack))
+        .route("/stacks/:stack_name/clone", post(clone_stacks))
+        .route("/stacks/:stack_name/slice", put(slice_stack))
+        .route("/stacks/:stack_name/add", put(add_layers))
+        .route("/export", get(export_workspace))
         .layer(middleware::from_fn_with_state(
             server_state.clone(),
             workspace_middleware,

@@ -6,7 +6,7 @@ use crate::{
     layer::{Layer, SelectOne},
 };
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default)]
+#[derive(Debug, Clone, Default)]
 pub struct StackCache {
     cache: Option<MoleculeLayer>,
     children: Box<BTreeMap<usize, StackCache>>,
@@ -37,7 +37,7 @@ impl StackCache {
     }
 }
 
-#[derive(Default)]
+#[derive(Default, Deserialize, Serialize, Clone)]
 pub struct LayerStorage {
     layers: BTreeMap<usize, Layer>,
 }

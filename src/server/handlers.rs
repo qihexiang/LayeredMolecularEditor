@@ -1,18 +1,18 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
-    ops::Range,
+    ops::{Deref, Range},
     sync::Arc,
 };
 
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
+    http::{status, StatusCode},
     response::{IntoResponse, Response},
     Extension, Json,
 };
 use lme::{
     chemistry::MoleculeLayer,
-    layer::{Layer, SelectOne},
+    layer::{self, Layer, SelectOne},
     workspace::{LayerStorage, LayerStorageError, StackCache},
 };
 
@@ -21,9 +21,15 @@ use tokio::sync::RwLock;
 
 use crate::{AppState, WorkspaceName};
 
+#[derive(Deserialize)]
+pub struct WorkspaceCreation {
+    name: String,
+    import: Option<(LayerStorage, BTreeMap<String, Vec<usize>>)>,
+}
+
 pub async fn create_workspace(
     State(state): State<AppState>,
-    Json(workspace): Json<WorkspaceName>,
+    Json(workspace): Json<WorkspaceCreation>,
 ) -> Response {
     let name_confilct = state.read().await.contains_key(&workspace.name);
     if name_confilct {
@@ -32,6 +38,16 @@ pub async fn create_workspace(
             "Unable to create workspace, name already used.",
         )
             .into_response()
+    } else if let Some((layers, stacks)) = workspace.import {
+        state.write().await.insert(
+            workspace.name,
+            (
+                Arc::new(RwLock::new(layers)),
+                Arc::new(RwLock::new(stacks)),
+                Default::default(),
+            ),
+        );
+        StatusCode::OK.into_response()
     } else {
         state
             .write()
@@ -39,6 +55,15 @@ pub async fn create_workspace(
             .insert(workspace.name, Default::default());
         StatusCode::OK.into_response()
     }
+}
+
+pub async fn export_workspace(
+    Extension(layers): Extension<Arc<RwLock<LayerStorage>>>,
+    Extension(stacks): Extension<Arc<RwLock<BTreeMap<String, Vec<usize>>>>>,
+) -> Json<(LayerStorage, BTreeMap<String, Vec<usize>>)> {
+    let layers = layers.read().await;
+    let stacks = stacks.read().await;
+    Json((layers.deref().clone(), stacks.deref().clone()))
 }
 
 pub async fn remove_workspace(
@@ -66,6 +91,7 @@ pub struct StackName {
 
 #[derive(Serialize, Debug)]
 pub enum WorkspaceError {
+    StackNameConflicted(String),
     NoSuchStack(String),
     NoSuchLayer(usize),
     NoSuchAtom(SelectOne),
@@ -130,13 +156,81 @@ pub struct CreateStack {
 pub async fn create_stack(
     Extension(stacks): Extension<Arc<RwLock<BTreeMap<String, Vec<usize>>>>>,
     Json(create_stack): Json<CreateStack>,
-) -> StatusCode {
+) -> Response {
     let mut stacks = stacks.write().await;
     if stacks.contains_key(&create_stack.name) {
-        StatusCode::CONFLICT
+        (
+            StatusCode::CONFLICT,
+            Json(WorkspaceError::StackNameConflicted(create_stack.name)),
+        )
+            .into_response()
     } else {
         stacks.insert(create_stack.name, create_stack.path);
-        StatusCode::OK
+        StatusCode::OK.into_response()
+    }
+}
+
+pub async fn clone_stacks(
+    Extension(stacks): Extension<Arc<RwLock<BTreeMap<String, Vec<usize>>>>>,
+    Path(stack_name): Path<String>,
+    Json(copy_names): Json<Vec<String>>,
+) -> Response {
+    let mut stacks = stacks.write().await;
+    if let Some(conflicted_name) = copy_names.iter().find(|name| stacks.contains_key(*name)) {
+        (
+            StatusCode::CONFLICT,
+            Json(WorkspaceError::StackNameConflicted(
+                conflicted_name.to_string(),
+            )),
+        )
+            .into_response()
+    } else if let Some(target_stack) = stacks.get(&stack_name).cloned() {
+        stacks.extend(
+            copy_names
+                .into_iter()
+                .map(|name| (name, target_stack.clone())),
+        );
+        StatusCode::OK.into_response()
+    } else {
+        (
+            StatusCode::NOT_FOUND,
+            Json(WorkspaceError::NoSuchStack(stack_name)),
+        )
+            .into_response()
+    }
+}
+
+pub async fn slice_stack(
+    Extension(stacks): Extension<Arc<RwLock<BTreeMap<String, Vec<usize>>>>>,
+    Path(stack_name): Path<String>,
+    Json((start, end)): Json<(usize, usize)>,
+) -> Response {
+    if let Some(stack) = stacks.write().await.get_mut(&stack_name) {
+        *stack = stack[start..end].to_vec();
+        StatusCode::OK.into_response()
+    } else {
+        (
+            StatusCode::NOT_FOUND,
+            Json(WorkspaceError::NoSuchStack(stack_name)),
+        )
+            .into_response()
+    }
+}
+
+pub async fn add_layers(
+    Extension(stacks): Extension<Arc<RwLock<BTreeMap<String, Vec<usize>>>>>,
+    Path(stack_name): Path<String>,
+    Json(layers): Json<Vec<usize>>,
+) -> Response {
+    if let Some(stack) = stacks.write().await.get_mut(&stack_name) {
+        stack.extend(layers);
+        StatusCode::OK.into_response()
+    } else {
+        (
+            StatusCode::NOT_FOUND,
+            Json(WorkspaceError::NoSuchStack(stack_name)),
+        )
+            .into_response()
     }
 }
 
