@@ -6,7 +6,7 @@ use std::{
 
 use axum::{
     extract::{Path, State},
-    http::{status, StatusCode},
+    http::StatusCode,
     response::{IntoResponse, Response},
     Extension, Json,
 };
@@ -232,6 +232,46 @@ pub async fn add_layers(
         )
             .into_response()
     }
+}
+
+pub async fn read_layer(
+    Extension(layers): Extension<Arc<RwLock<LayerStorage>>>,
+    Path(layer_id): Path<usize>,
+) -> Response {
+    if let Some(layer) = layers.read().await.read_layer(&layer_id).cloned() {
+        Json(layer).into_response()
+    } else {
+        (
+            StatusCode::NOT_FOUND,
+            Json(WorkspaceError::NoSuchLayer(layer_id)),
+        )
+            .into_response()
+    }
+}
+
+pub async fn remove_unused_layers(
+    Extension(layers): Extension<Arc<RwLock<LayerStorage>>>,
+    Extension(stacks): Extension<Arc<RwLock<BTreeMap<String, Vec<usize>>>>>,
+) -> Response {
+    let layers_in_use = stacks
+        .read()
+        .await
+        .values()
+        .flatten()
+        .copied()
+        .collect::<BTreeSet<_>>();
+    let layers_unused = layers
+        .read()
+        .await
+        .layer_ids()
+        .filter(|id| !layers_in_use.contains(id))
+        .copied()
+        .collect::<Vec<_>>();
+    let mut layers = layers.write().await;
+    for layer in layers_unused {
+        layers.remove_layer(&layer);
+    }
+    StatusCode::OK.into_response()
 }
 
 #[tokio::test]

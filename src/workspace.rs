@@ -68,6 +68,10 @@ impl LayerStorage {
         start_id..self.next_layer_id()
     }
 
+    pub fn read_layer(&self, layer_id: &usize) -> Option<&Layer> {
+        self.layers.get(layer_id)
+    }
+
     pub fn remove_layer(&mut self, layer_id: &usize) -> Option<Layer> {
         self.layers.remove(layer_id)
     }
