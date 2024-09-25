@@ -13,7 +13,7 @@ pub async fn workspace_middleware(
     mut request: Request,
     next: Next,
 ) -> Response {
-    if let Some((layers, stacks, stack_cache)) = state.read().await.get(&workspace.name) {
+    if let Some((layers, stacks, stack_cache)) = state.read().await.get(&workspace.ws_name) {
         request.extensions_mut().insert(layers.clone());
         request.extensions_mut().insert(stacks.clone());
         request.extensions_mut().insert(stack_cache.clone());

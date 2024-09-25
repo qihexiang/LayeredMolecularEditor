@@ -72,6 +72,10 @@ impl LayerStorage {
         self.layers.get(layer_id)
     }
 
+    pub fn write_layer(&mut self, layer_id: &usize) -> Option<&mut Layer> {
+        self.layers.get_mut(layer_id)
+    }
+
     pub fn remove_layer(&mut self, layer_id: &usize) -> Option<Layer> {
         self.layers.remove(layer_id)
     }
