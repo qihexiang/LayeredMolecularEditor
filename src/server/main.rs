@@ -5,7 +5,8 @@ use axum::{
 };
 use clap::Parser;
 use handlers::{
-    add_layers, clone_stacks, create_layers, create_stack, create_workspace, export_workspace, get_layers, read_layer, read_stack, remove_unused_layers, remove_workspace, slice_stack
+    add_layers, clone_stacks, create_layers, create_stack, create_workspace, export_workspace,
+    get_layers, read_layer, read_stack, remove_unused_layers, remove_workspace, slice_stack,
 };
 use lme::workspace::{LayerStorage, StackCache};
 use middlewares::workspace_middleware;
@@ -38,7 +39,7 @@ pub struct WorkspaceName {
 #[command(version, about, long_about = None)]
 pub struct ServerStartParameters {
     #[arg(short, long)]
-    listen: String
+    listen: String,
 }
 
 #[tokio::main]
@@ -65,6 +66,8 @@ async fn main() {
         .route("/workspace", post(create_workspace))
         .route("/workspace/:name", delete(remove_workspace))
         .with_state(server_state);
-    let listener = tokio::net::TcpListener::bind(start_parameters.listen).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(start_parameters.listen)
+        .await
+        .unwrap();
     axum::serve(listener, app).await.unwrap();
 }
