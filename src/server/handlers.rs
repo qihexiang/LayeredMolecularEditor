@@ -12,7 +12,7 @@ use axum::{
 };
 use lme::{
     chemistry::MoleculeLayer,
-    layer::{self, Layer, SelectOne},
+    layer::{Layer, SelectOne},
     workspace::{LayerStorage, LayerStorageError, StackCache},
 };
 

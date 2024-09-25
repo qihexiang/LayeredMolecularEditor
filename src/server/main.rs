@@ -3,6 +3,7 @@ use axum::{
     routing::{delete, get, post, put},
     Router,
 };
+use clap::Parser;
 use handlers::{
     add_layers, clone_stacks, create_layers, create_stack, create_workspace, export_workspace, get_layers, read_layer, read_stack, remove_unused_layers, remove_workspace, slice_stack
 };
@@ -33,8 +34,16 @@ pub struct WorkspaceName {
     name: String,
 }
 
+#[derive(Parser)]
+#[command(version, about, long_about = None)]
+pub struct ServerStartParameters {
+    #[arg(short, long)]
+    listen: String
+}
+
 #[tokio::main]
 async fn main() {
+    let start_parameters = ServerStartParameters::parse();
     let server_state: AppState = Default::default();
     let workspace_router = Router::new()
         .route("/stacks/new", post(create_stack))
@@ -56,6 +65,6 @@ async fn main() {
         .route("/workspace", post(create_workspace))
         .route("/workspace/:name", delete(remove_workspace))
         .with_state(server_state);
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
+    let listener = tokio::net::TcpListener::bind(start_parameters.listen).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
