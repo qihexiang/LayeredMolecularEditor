@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use nalgebra::{Isometry3, Point3};
 use serde::{Deserialize, Serialize};
@@ -68,6 +68,10 @@ impl Atom3DList {
             .iter_mut()
             .enumerate()
             .for_each(|(index, atom)| *atom = atom.or(other.read_atom(index)))
+    }
+
+    pub fn to_vec(self) -> Vec<Option<Atom3D>> {
+        self.0
     }
 }
 
@@ -149,5 +153,27 @@ impl MoleculeLayer {
         self.bonds.migrate(&other.bonds);
         self.ids.extend(other.ids.clone());
         self.groups.extend(other.groups.clone());
+    }
+
+    pub fn offset(self, offset: usize) -> Self {
+        let atoms = self.atoms.offset(offset);
+        let bonds = self.bonds.offset(offset);
+        let ids: HashMap<String, usize> = self
+            .ids
+            .into_iter()
+            .map(|(id, idx)| (id, idx + offset))
+            .collect();
+        let groups: NtoN<String, usize> = NtoN::from(
+            self.groups
+                .into_iter()
+                .map(|(group_name, idx)| (group_name, idx + offset))
+                .collect::<HashSet<_>>(),
+        );
+        Self {
+            atoms,
+            bonds,
+            ids,
+            groups,
+        }
     }
 }

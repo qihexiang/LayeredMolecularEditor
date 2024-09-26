@@ -133,6 +133,16 @@ impl SelectOne {
             Self::IdName(id_name) => layer.ids.get(id_name).copied(),
         }
     }
+
+    pub fn get_atom(&self, layer: &MoleculeLayer) -> Option<Atom3D> {
+        self.to_index(layer)
+            .and_then(|index| layer.atoms.read_atom(index))
+    }
+
+    pub fn set_atom(&self, layer: &mut MoleculeLayer, atom: Option<Atom3D>) -> Option<()> {
+        self.to_index(layer)
+            .and_then(|index| Some(layer.atoms.set_atoms(index, vec![atom])))
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -144,7 +154,7 @@ pub enum SelectMany {
 }
 
 impl SelectMany {
-    fn to_indexes(&self, layer: &MoleculeLayer) -> BTreeSet<usize> {
+    pub fn to_indexes(&self, layer: &MoleculeLayer) -> BTreeSet<usize> {
         match self {
             Self::All => (0..layer.atoms.len()).collect(),
             Self::Number(number) => (0..layer.atoms.len())

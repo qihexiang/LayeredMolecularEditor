@@ -99,3 +99,8 @@ impl LayerStorage {
         Ok(base)
     }
 }
+
+pub struct Workspace {
+    pub layers: LayerStorage,
+    pub stacks: Vec<Vec<usize>>
+}
