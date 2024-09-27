@@ -26,16 +26,17 @@ impl Step {
                 .ok_or(WorkflowError::WindowNotFound(from.clone()))?;
             workflow_data.current_window = window;
         }
-        let execution = self.run.execute(workflow_data, cache)?;
+        let next_window = self.run.execute(workflow_data, cache)?;
         if let Some(name) = &self.name {
             if workflow_data
                 .windows
-                .insert(name.clone(), execution)
+                .insert(name.clone(), next_window.clone())
                 .is_some()
             {
                 println!("Operation window named {} is replaced.", name);
             }
         }
+        workflow_data.current_window = next_window;
         Ok(())
     }
 }
