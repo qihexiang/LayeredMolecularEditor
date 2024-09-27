@@ -4,8 +4,8 @@ use std::io;
 use crate::runner::substituent::SubstituentError;
 
 #[derive(Debug)]
+#[allow(dead_code, reason = "only use for error output")]
 pub enum WorkflowError {
-    WindowsNameConflict(String),
     WindowNotFound(String),
     SubstituentError(SubstituentError),
     SerdeError(serde_json::Error),
