@@ -1,10 +1,11 @@
-use lme::{chemistry::MoleculeLayer, workspace::Workspace};
+use lme::molecule_layer::MoleculeLayer;
 use serde::{Deserialize, Serialize};
 
 use crate::{step::Step, workflow_data::WorkflowData};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Default)]
 pub struct WorkflowInput {
+    #[serde(default)]
     pub base: MoleculeLayer,
     pub steps: Vec<Step>,
 }

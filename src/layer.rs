@@ -1,7 +1,7 @@
 use std::collections::{BTreeSet, HashMap};
 
 use crate::{
-    chemistry::{Atom3D, MoleculeLayer},
+    molecule_layer::{Atom3D, MoleculeLayer},
     n_to_n::NtoN,
 };
 use nalgebra::{Isometry3, Point3, Translation3, Vector3};

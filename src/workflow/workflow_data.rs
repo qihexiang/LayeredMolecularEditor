@@ -5,7 +5,7 @@ use std::{
 };
 
 use lme::{
-    chemistry::MoleculeLayer,
+    molecule_layer::MoleculeLayer,
     workspace::{StackCache, Workspace},
 };
 use serde::{Deserialize, Serialize};
@@ -25,9 +25,15 @@ impl Default for WorkflowData {
         let base = MoleculeLayer::default();
         let mut workspace = Workspace::default();
         workspace.stacks.push(vec![]);
-        let windows = BTreeMap::default();
+        let mut windows = BTreeMap::default();
         let current_window = 0..1;
-        Self {base, workspace, windows, current_window}
+        windows.insert("base".to_string(), current_window.clone());
+        Self {
+            base,
+            workspace,
+            windows,
+            current_window,
+        }
     }
 }
 
@@ -43,12 +49,12 @@ impl WorkflowData {
         path: &[usize],
         cache: Arc<RwLock<StackCache>>,
     ) -> Result<MoleculeLayer, WorkflowError> {
-        if let Some(cached) = cache
+        let cached = cache
             .read()
             .expect("cache error, please check error log and retry.")
             .read_cache(path)
-            .cloned()
-        {
+            .cloned();
+        if let Some(cached) = cached {
             Ok(cached)
         } else {
             let data = self.workspace.layers.read_stack(path, self.base.clone())?;

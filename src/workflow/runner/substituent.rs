@@ -1,7 +1,7 @@
 use std::{collections::{HashMap, HashSet}, f64::consts::PI};
 
 use lme::{
-    chemistry::MoleculeLayer,
+    molecule_layer::MoleculeLayer,
     layer::{SelectMany, SelectOne}, n_to_n::NtoN,
 };
 use nalgebra::{Isometry3, Translation3, Unit, UnitQuaternion, Vector3};
@@ -16,6 +16,7 @@ pub struct Substituent {
 }
 
 #[derive(Debug)]
+#[allow(dead_code, reason = "only use for error output")]
 pub enum SubstituentError {
     EntryAtomNotFoundInTarget(SelectOne),
     ExitAtomNotFoundInTarget(SelectOne),

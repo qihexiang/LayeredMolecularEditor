@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, ops::Range};
 
 use crate::{
-    chemistry::MoleculeLayer,
+    molecule_layer::MoleculeLayer,
     layer::{Layer, SelectOne},
 };
 

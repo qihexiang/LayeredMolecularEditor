@@ -1,179 +1,141 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use lazy_static::lazy_static;
+use std::collections::BTreeSet;
 
-use nalgebra::{Isometry3, Point3};
-use serde::{Deserialize, Serialize};
-
-use crate::n_to_n::NtoN;
-
-#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
-pub struct Atom3D {
-    pub element: usize,
-    pub position: Point3<f64>,
+lazy_static! {
+    static ref ELEMENT_SET: BTreeSet<(usize, &'static str)> = BTreeSet::from([
+        (1, "H"),
+        (2, "He"),
+        (3, "Li"),
+        (4, "Be"),
+        (5, "B"),
+        (6, "C"),
+        (7, "N"),
+        (8, "O"),
+        (9, "F"),
+        (10, "Ne"),
+        (11, "Na"),
+        (12, "Mg"),
+        (13, "Al"),
+        (14, "Si"),
+        (15, "P"),
+        (16, "S"),
+        (17, "Cl"),
+        (18, "Ar"),
+        (19, "K"),
+        (20, "Ca"),
+        (21, "Sc"),
+        (22, "Ti"),
+        (23, "V"),
+        (24, "Cr"),
+        (25, "Mn"),
+        (26, "Fe"),
+        (27, "Co"),
+        (28, "Ni"),
+        (29, "Cu"),
+        (30, "Zn"),
+        (31, "Ga"),
+        (32, "Ge"),
+        (33, "As"),
+        (34, "Se"),
+        (35, "Br"),
+        (36, "Kr"),
+        (37, "Rb"),
+        (38, "Sr"),
+        (39, "Y"),
+        (40, "Zr"),
+        (41, "Nb"),
+        (42, "Mo"),
+        (43, "Tc"),
+        (44, "Ru"),
+        (45, "Rh"),
+        (46, "Pd"),
+        (47, "Ag"),
+        (48, "Cd"),
+        (49, "In"),
+        (50, "Sn"),
+        (51, "Sb"),
+        (52, "Te"),
+        (53, "I"),
+        (54, "Xe"),
+        (55, "Cs"),
+        (56, "Ba"),
+        (57, "La"),
+        (58, "Ce"),
+        (59, "Pr"),
+        (60, "Nd"),
+        (61, "Pm"),
+        (62, "Sm"),
+        (63, "Eu"),
+        (64, "Gd"),
+        (65, "Tb"),
+        (66, "Dy"),
+        (67, "Ho"),
+        (68, "Er"),
+        (69, "Tm"),
+        (70, "Yb"),
+        (71, "Lu"),
+        (72, "Hf"),
+        (73, "Ta"),
+        (74, "W"),
+        (75, "Re"),
+        (76, "Os"),
+        (77, "Ir"),
+        (78, "Pt"),
+        (79, "Au"),
+        (80, "Hg"),
+        (81, "Tl"),
+        (82, "Pb"),
+        (83, "Bi"),
+        (84, "Po"),
+        (85, "At"),
+        (86, "Rn"),
+        (87, "Fr"),
+        (88, "Ra"),
+        (89, "Ac"),
+        (90, "Th"),
+        (91, "Pa"),
+        (92, "U"),
+        (93, "Np"),
+        (94, "Pu"),
+        (95, "Am"),
+        (96, "Cm"),
+        (97, "Bk"),
+        (98, "Cf"),
+        (99, "Es"),
+        (100, "Fm"),
+        (101, "Md"),
+        (102, "No"),
+        (103, "Lr"),
+        (104, "Rf"),
+        (105, "Db"),
+        (106, "Sg"),
+        (107, "Bh"),
+        (108, "Hs"),
+        (109, "Mt"),
+        (110, "Ds"),
+        (111, "Rg"),
+        (112, "Cn"),
+        (113, "Nh"),
+        (114, "Fl"),
+        (115, "Mc"),
+        (116, "Lv"),
+        (117, "Ts"),
+        (118, "Og"),
+    ]);
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-pub struct Atom3DList(Vec<Option<Atom3D>>);
-
-impl Atom3DList {
-    pub fn new(capacity: usize) -> Self {
-        Self(vec![Default::default(); capacity])
-    }
-
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    fn extend_to(&mut self, capacity: usize) {
-        let current_capacity = self.len();
-        if current_capacity < capacity {
-            self.0
-                .extend_from_slice(&vec![Default::default(); capacity - current_capacity]);
-        }
-    }
-
-    pub fn offset(self, offset: usize) -> Self {
-        Self(vec![vec![Default::default(); offset], self.0].concat())
-    }
-
-    pub fn read_atom(&self, index: usize) -> Option<Atom3D> {
-        self.0.get(index).copied().unwrap_or_default()
-    }
-
-    pub fn set_atoms(&mut self, offset: usize, atoms: Vec<Option<Atom3D>>) {
-        let len_after_set = (offset + atoms.len() - 1).max(self.len());
-        self.extend_to(len_after_set);
-        self.0
-            .iter_mut()
-            .skip(offset)
-            .enumerate()
-            .for_each(|(idx, current)| *current = atoms[idx])
-    }
-
-    pub fn isometry(&mut self, isometry: Isometry3<f64>, select: &BTreeSet<usize>) {
-        self.0
-            .iter_mut()
-            .enumerate()
-            .filter(|(idx, _)| select.contains(idx))
-            .for_each(|(_, atom)| {
-                if let Some(atom) = atom {
-                    atom.position = isometry * atom.position
-                }
-            })
-    }
-
-    pub fn migrate(&mut self, other: &Self) {
-        let capacity = self.len().max(other.len());
-        self.extend_to(capacity);
-        self.0
-            .iter_mut()
-            .enumerate()
-            .for_each(|(index, atom)| *atom = atom.or(other.read_atom(index)))
-    }
-
-    pub fn to_vec(self) -> Vec<Option<Atom3D>> {
-        self.0
-    }
+pub fn element_num_to_symbol(input: &usize) -> Option<&'static str> {
+    ELEMENT_SET
+        .iter()
+        .find_map(|(num, symbol)| if input == num { Some(*symbol) } else { None })
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-pub struct BondMatrix(Vec<Vec<Option<f64>>>);
-
-impl BondMatrix {
-    pub fn new(capacity: usize) -> Self {
-        Self(vec![vec![None; capacity]; capacity])
-    }
-
-    pub fn new_filled(capacity: usize) -> Self {
-        Self(vec![vec![Some(0.); capacity]; capacity])
-    }
-
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    fn extend_to(&mut self, capacity: usize) {
-        if self.len() < capacity {
-            let current_capacity = self.len();
-            self.0
-                .iter_mut()
-                .for_each(|row| row.extend(&vec![None; capacity - current_capacity]));
-            self.0
-                .append(&mut vec![vec![None; capacity]; capacity - current_capacity]);
-        }
-    }
-
-    pub fn offset(self, offset: usize) -> Self {
-        let current_capacity = self.len();
-        let prepend_rows = vec![vec![None; offset + current_capacity]; offset];
-        let current_rows = self
-            .0
-            .into_iter()
-            .map(|row| vec![vec![None; offset], row].concat())
-            .collect();
-        Self(vec![prepend_rows, current_rows].concat())
-    }
-
-    pub fn read_bond(&self, a: usize, b: usize) -> Option<f64> {
-        self.0.get(a)?.get(b).copied().flatten()
-    }
-
-    pub fn set_bond(&mut self, a: usize, b: usize, bond: Option<f64>) -> bool {
-        let max_index = a.max(b);
-        if max_index >= self.len() {
-            false
+pub fn element_symbol_to_num(input: &str) -> Option<usize> {
+    ELEMENT_SET.iter().find_map(|(num, symbol)| {
+        if symbol.to_uppercase() == input.to_uppercase() {
+            Some(*num)
         } else {
-            self.0[a][b] = bond;
-            self.0[b][a] = bond;
-            true
+            None
         }
-    }
-
-    pub fn migrate(&mut self, other: &Self) {
-        let capacity = self.len().max(other.len());
-        self.extend_to(capacity);
-        for (row_idx, row) in self.0.iter_mut().enumerate() {
-            for (col_idx, cell) in row.iter_mut().enumerate() {
-                *cell = other.read_bond(row_idx, col_idx);
-            }
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-pub struct MoleculeLayer {
-    pub atoms: Atom3DList,
-    pub bonds: BondMatrix,
-    pub ids: HashMap<String, usize>,
-    pub groups: NtoN<String, usize>,
-}
-
-impl MoleculeLayer {
-    pub fn migrate(&mut self, other: &Self) {
-        self.atoms.migrate(&other.atoms);
-        self.bonds.migrate(&other.bonds);
-        self.ids.extend(other.ids.clone());
-        self.groups.extend(other.groups.clone());
-    }
-
-    pub fn offset(self, offset: usize) -> Self {
-        let atoms = self.atoms.offset(offset);
-        let bonds = self.bonds.offset(offset);
-        let ids: HashMap<String, usize> = self
-            .ids
-            .into_iter()
-            .map(|(id, idx)| (id, idx + offset))
-            .collect();
-        let groups: NtoN<String, usize> = NtoN::from(
-            self.groups
-                .into_iter()
-                .map(|(group_name, idx)| (group_name, idx + offset))
-                .collect::<HashSet<_>>(),
-        );
-        Self {
-            atoms,
-            bonds,
-            ids,
-            groups,
-        }
-    }
+    })
 }

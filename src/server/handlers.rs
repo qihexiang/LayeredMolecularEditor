@@ -11,7 +11,7 @@ use axum::{
     Extension, Json,
 };
 use lme::{
-    chemistry::{Atom3D, MoleculeLayer},
+    molecule_layer::{Atom3D, MoleculeLayer},
     layer::{Layer, SelectOne},
     workspace::{LayerStorage, LayerStorageError, StackCache},
 };
