@@ -42,7 +42,7 @@ pub struct LayerStorage {
     layers: BTreeMap<usize, Layer>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub enum LayerStorageError {
     NoSuchLayer(usize),
     FilterError(SelectOne),
@@ -100,6 +100,7 @@ impl LayerStorage {
     }
 }
 
+#[derive(Default, Serialize, Deserialize, Clone)]
 pub struct Workspace {
     pub layers: LayerStorage,
     pub stacks: Vec<Vec<usize>>

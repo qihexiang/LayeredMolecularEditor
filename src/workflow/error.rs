@@ -1,9 +1,12 @@
 use lme::workspace::LayerStorageError;
 use std::io;
 
-use crate::substituent::SubstituentError;
+use crate::runner::substituent::SubstituentError;
 
+#[derive(Debug)]
 pub enum WorkflowError {
+    WindowsNameConflict(String),
+    WindowNotFound(String),
     SubstituentError(SubstituentError),
     SerdeError(serde_json::Error),
     IoError(io::Error),

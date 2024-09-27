@@ -15,6 +15,7 @@ pub struct Substituent {
     group_prefix: String
 }
 
+#[derive(Debug)]
 pub enum SubstituentError {
     EntryAtomNotFoundInTarget(SelectOne),
     ExitAtomNotFoundInTarget(SelectOne),
