@@ -1,5 +1,5 @@
 use lme::workspace::LayerStorageError;
-use std::io;
+use std::{io, path::PathBuf, process::ExitStatus};
 
 use crate::runner::substituent::SubstituentError;
 
@@ -9,7 +9,11 @@ pub enum WorkflowError {
     WindowNotFound(String),
     SubstituentError(SubstituentError),
     SerdeError(serde_json::Error),
-    IoError(io::Error),
+    TempDirCreateError(io::Error),
+    FileWriteError((PathBuf, io::Error)),
+    FileReadError((PathBuf, io::Error)),
+    CommandExecutionFail((String, Vec<String>, io::Error)),
+    CommandExitStatus(ExitStatus),
     StackIdOutOfRange(usize),
     LayerError(LayerStorageError),
     FilePatternError(glob::PatternError),
@@ -31,12 +35,6 @@ impl From<glob::GlobError> for WorkflowError {
 impl From<glob::PatternError> for WorkflowError {
     fn from(value: glob::PatternError) -> Self {
         Self::FilePatternError(value)
-    }
-}
-
-impl From<io::Error> for WorkflowError {
-    fn from(value: io::Error) -> Self {
-        Self::IoError(value)
     }
 }
 

@@ -5,7 +5,9 @@ use axum::{
 };
 use clap::Parser;
 use handlers::{
-    add_layers, clone_stacks, create_layers, create_stack, create_workspace, export_workspace, get_layers, layer_set_atoms, layer_set_bonds, read_layer, read_stack, remove_unused_layers, remove_workspace, slice_stack
+    add_layers, clone_stacks, create_layers, create_stack, create_workspace, export_workspace,
+    get_layers, layer_set_atoms, layer_set_bonds, read_layer, read_stack, remove_unused_layers,
+    remove_workspace, slice_stack,
 };
 use lme::workspace::{LayerStorage, StackCache};
 use middlewares::workspace_middleware;

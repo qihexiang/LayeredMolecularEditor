@@ -4,15 +4,18 @@ use std::ops::Range;
 use std::process::Command;
 use std::sync::{Arc, RwLock};
 
-use lme::{layer::{Layer, SelectOne}, workspace::StackCache};
+use lme::{
+    layer::{Layer, SelectOne},
+    workspace::StackCache,
+};
 use serde::Deserialize;
 use substituent::Substituent;
 use tempfile::tempdir;
 
 use crate::{error::WorkflowError, workflow_data::WorkflowData};
 
-use rayon::prelude::*;
 use glob::glob;
+use rayon::prelude::*;
 
 pub mod substituent;
 
@@ -74,7 +77,8 @@ impl Runner {
                     workflow_data.workspace.stacks.extend(new_stack);
                     workflow_data.current_window.end
                         ..workflow_data.current_window.end
-                            + (workflow_data.current_window.end - workflow_data.current_window.start)
+                            + (workflow_data.current_window.end
+                                - workflow_data.current_window.start)
                 })
             }
             Self::Function { command, arguments } => {
@@ -96,16 +100,30 @@ impl Runner {
                     .collect::<Result<Vec<_>, _>>()?;
                 let data =
                     serde_json::to_string(&stacks).map_err(|err| WorkflowError::SerdeError(err))?;
-                let temp_directory = tempdir()?;
+                let temp_directory =
+                    tempdir().map_err(|err| WorkflowError::TempDirCreateError(err))?;
                 let filepath = temp_directory.path().join("stacks.json");
-                let mut file = File::create(filepath)?;
-                file.write_all(data.as_bytes())?;
-                Command::new(command)
+                let mut file = File::create(&filepath)
+                    .map_err(|err| WorkflowError::FileWriteError((filepath.clone(), err)))?;
+                file.write_all(data.as_bytes())
+                    .map_err(|err| WorkflowError::FileWriteError((filepath, err)))?;
+                let exit_status = Command::new(command)
                     .args(arguments)
                     .current_dir(&temp_directory)
-                    .spawn()?;
+                    .status()
+                    .map_err(|err| {
+                        WorkflowError::CommandExecutionFail((
+                            command.to_string(),
+                            arguments.clone(),
+                            err,
+                        ))
+                    })?;
+                if !exit_status.success() {
+                    Err(WorkflowError::CommandExitStatus(exit_status))?;
+                }
                 let filepath = temp_directory.path().join("output.json");
-                let file = File::create(filepath)?;
+                let file = File::open(&filepath)
+                    .map_err(|err| WorkflowError::FileReadError((filepath, err)))?;
                 let output: Vec<Vec<Vec<Layer>>> = serde_json::from_reader(file)?;
                 let output_window_length =
                     output.iter().flatten().flatten().collect::<Vec<_>>().len();
@@ -135,7 +153,8 @@ impl Runner {
                         workflow_data.workspace.stacks.push(stack_path);
                     }
                 }
-                Ok(workflow_data.current_window.end..workflow_data.current_window.end + output_window_length)
+                Ok(workflow_data.current_window.end
+                    ..workflow_data.current_window.end + output_window_length)
             }
             Self::Substituent {
                 entry,
@@ -145,7 +164,9 @@ impl Runner {
                 let matched_files = glob(&file_pattern)?.collect::<Result<Vec<_>, _>>()?;
                 let matched_files = matched_files
                     .into_par_iter()
-                    .map(|path| File::open(path))
+                    .map(|path| {
+                        File::open(&path).map_err(|err| WorkflowError::FileReadError((path, err)))
+                    })
                     .collect::<Result<Vec<_>, _>>()?;
                 let substituents = matched_files
                     .into_par_iter()
@@ -173,8 +194,15 @@ impl Runner {
                     .collect::<Result<Vec<_>, WorkflowError>>()?;
                 let window_start = workflow_data.workspace.stacks.len();
                 for (path, generated_layers) in stack_and_layers {
-                    let created_layers = workflow_data.workspace.layers.create_layers(generated_layers.into_iter().map(|molecule| Layer::Fill(molecule)));
-                    let modified_stacks = created_layers.par_bridge().map(|layer_id| vec![path.clone(), vec![layer_id]].concat()).collect::<Vec<_>>();
+                    let created_layers = workflow_data.workspace.layers.create_layers(
+                        generated_layers
+                            .into_iter()
+                            .map(|molecule| Layer::Fill(molecule)),
+                    );
+                    let modified_stacks = created_layers
+                        .par_bridge()
+                        .map(|layer_id| vec![path.clone(), vec![layer_id]].concat())
+                        .collect::<Vec<_>>();
                     workflow_data.workspace.stacks.extend(modified_stacks);
                 }
                 let window_stop = workflow_data.workspace.stacks.len();

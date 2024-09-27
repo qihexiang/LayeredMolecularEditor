@@ -2,8 +2,8 @@ use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, ops::Range};
 
 use crate::{
-    molecule_layer::MoleculeLayer,
     layer::{Layer, SelectOne},
+    molecule_layer::MoleculeLayer,
 };
 
 #[derive(Debug, Clone, Default)]
@@ -103,5 +103,5 @@ impl LayerStorage {
 #[derive(Default, Serialize, Deserialize, Clone)]
 pub struct Workspace {
     pub layers: LayerStorage,
-    pub stacks: Vec<Vec<usize>>
+    pub stacks: Vec<Vec<usize>>,
 }

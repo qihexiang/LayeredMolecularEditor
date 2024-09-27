@@ -1,8 +1,12 @@
-use std::{collections::{HashMap, HashSet}, f64::consts::PI};
+use std::{
+    collections::{HashMap, HashSet},
+    f64::consts::PI,
+};
 
 use lme::{
+    layer::{SelectMany, SelectOne},
     molecule_layer::MoleculeLayer,
-    layer::{SelectMany, SelectOne}, n_to_n::NtoN,
+    n_to_n::NtoN,
 };
 use nalgebra::{Isometry3, Translation3, Unit, UnitQuaternion, Vector3};
 use serde::Deserialize;
@@ -12,7 +16,7 @@ pub struct Substituent {
     entry: SelectOne,
     target: SelectOne,
     structure: MoleculeLayer,
-    group_prefix: String
+    group_prefix: String,
 }
 
 #[derive(Debug)]
@@ -58,22 +62,36 @@ impl Substituent {
         let rotation = Isometry3::from_parts(Translation3::from(Vector3::zeros()), rotation);
         let mut substituent = self.structure.clone();
         let select = SelectMany::All.to_indexes(&substituent);
-        let pre_translation = Translation3::from(- substituent_entry.position);
+        let pre_translation = Translation3::from(-substituent_entry.position);
         let post_translation = pre_translation.inverse();
         substituent.atoms.isometry(pre_translation.into(), &select);
         substituent.atoms.isometry(rotation, &select);
         substituent.atoms.isometry(post_translation.into(), &select);
         substituent.atoms.isometry(translation.into(), &select);
         self.entry.set_atom(&mut substituent, None);
-        let exit_atom = self.target.get_atom(&substituent).expect("unable to get exit atom in substituent");
+        let exit_atom = self
+            .target
+            .get_atom(&substituent)
+            .expect("unable to get exit atom in substituent");
         self.target.set_atom(&mut substituent, None);
         let offset = base.atoms.len();
-        let mut substituent = substituent.offset(offset); 
-        substituent.groups = NtoN::from(substituent.groups.get_lefts().into_iter().map(|current_name| {
-            let mut updated_name = self.group_prefix.clone();
-            updated_name.push_str(&current_name);
-            substituent.groups.get_left(current_name).map(move |index| (updated_name.clone(), *index))
-        }).flatten().collect::<HashSet<_>>());
+        let mut substituent = substituent.offset(offset);
+        substituent.groups = NtoN::from(
+            substituent
+                .groups
+                .get_lefts()
+                .into_iter()
+                .map(|current_name| {
+                    let mut updated_name = self.group_prefix.clone();
+                    updated_name.push_str(&current_name);
+                    substituent
+                        .groups
+                        .get_left(current_name)
+                        .map(move |index| (updated_name.clone(), *index))
+                })
+                .flatten()
+                .collect::<HashSet<_>>(),
+        );
         substituent.ids = HashMap::new();
         entry.set_atom(&mut substituent, Some(target_entry));
         target.set_atom(&mut substituent, Some(exit_atom));
