@@ -14,6 +14,12 @@ pub struct Atom3D {
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct Atom3DList(Vec<Option<Atom3D>>);
 
+impl From<Vec<Atom3D>> for Atom3DList {
+    fn from(value: Vec<Atom3D>) -> Self {
+        Self(value.into_iter().map(|atom| Some(atom)).collect())
+    }
+}
+
 impl Atom3DList {
     pub fn new(capacity: usize) -> Self {
         Self(vec![Default::default(); capacity])
@@ -141,6 +147,7 @@ impl BondMatrix {
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct MoleculeLayer {
+    pub title: String,
     pub atoms: Atom3DList,
     pub bonds: BondMatrix,
     pub ids: HashMap<String, usize>,
@@ -149,6 +156,7 @@ pub struct MoleculeLayer {
 
 impl MoleculeLayer {
     pub fn migrate(&mut self, other: &Self) {
+        self.title = other.title.to_string();
         self.atoms.migrate(&other.atoms);
         self.bonds.migrate(&other.bonds);
         self.ids.extend(other.ids.clone());
@@ -170,6 +178,7 @@ impl MoleculeLayer {
                 .collect::<HashSet<_>>(),
         );
         Self {
+            title: self.title,
             atoms,
             bonds,
             ids,
