@@ -105,3 +105,15 @@ pub struct Workspace {
     pub layers: LayerStorage,
     pub stacks: Vec<Vec<usize>>,
 }
+
+impl Workspace {
+    pub fn add_layers_on_stack<I>(&mut self, mut base: Vec<usize>, layers: I) -> usize
+    where
+        I: Iterator<Item = Layer>,
+    {
+        let layer_ids = self.layers.create_layers(layers);
+        base.extend(layer_ids);
+        self.stacks.push(base);
+        self.stacks.len()
+    }
+}

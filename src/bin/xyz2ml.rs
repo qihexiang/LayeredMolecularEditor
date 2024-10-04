@@ -1,8 +1,4 @@
-use std::{
-    collections::HashMap,
-    fs::File,
-    io::Read,
-};
+use std::{collections::HashMap, fs::File, io::Read};
 
 use clap::Parser;
 use glob::glob;
@@ -27,15 +23,15 @@ impl XYZContent {
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
 /// Convert XYZ files to MoleculeLayer data in JSON(.ml.json) or YAML(.ml.yaml) format.
-/// 
+///
 /// If neither -j/--json nor -y/--yaml is set, nothing will be output but check the XYZ files could be convert.
 struct Arguments {
     /// Give the global file match pattern, for example:
-    /// 
+    ///
     /// - "./*.xyz" matches all xyz files in current working directory
-    /// 
+    ///
     /// - "./abc-*.xyz" matches all xyz files starts with abc- in current working directory
-    /// 
+    ///
     /// - "./**/*.xyz" matches all xyz files can be found recursively in current working directory
     #[arg(short, long)]
     input: String,
@@ -44,7 +40,7 @@ struct Arguments {
     json: bool,
     /// Generate output MoleculeLayer file in YAML format.
     #[arg(short, long)]
-    yaml: bool
+    yaml: bool,
 }
 
 fn main() {

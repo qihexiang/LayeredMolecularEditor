@@ -29,7 +29,7 @@ pub enum SubstituentError {
 }
 
 impl Substituent {
-    pub fn generate_path(
+    pub fn generate_layer(
         &self,
         base: MoleculeLayer,
         entry: SelectOne,

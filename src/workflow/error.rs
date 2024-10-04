@@ -12,6 +12,7 @@ pub enum WorkflowError {
     TempDirCreateError(io::Error),
     FileWriteError((PathBuf, io::Error)),
     FileReadError((PathBuf, io::Error)),
+    CommandOutputLengthNotMatchInputLength((usize, usize)),
     CommandExecutionFail((String, Vec<String>, io::Error)),
     CommandExitStatus(ExitStatus),
     StackIdOutOfRange(usize),
