@@ -1,10 +1,6 @@
-use std::{
-    fs::File,
-    sync::{Arc, RwLock},
-};
+use std::fs::File;
 
 use input_data::{WorkflowCheckPoint, WorkflowInput};
-use lme::workspace::StackCache;
 use workflow_data::WorkflowData;
 
 mod error;
@@ -30,9 +26,8 @@ fn main() {
         println!("Workflow data created from input file.");
         (steps, workflow_data)
     };
-    let cache: Arc<RwLock<StackCache>> = Default::default();
     for (index, step) in steps.into_iter().enumerate() {
-        step.execute(&mut workflow_data, cache.clone()).unwrap();
+        step.execute(index, &mut workflow_data).unwrap();
         let checkpoint = WorkflowCheckPoint {
             skip: index + 1,
             workflow_data: workflow_data.clone(),

@@ -1,9 +1,10 @@
-use std::sync::{Arc, RwLock};
-
-use lme::workspace::StackCache;
 use serde::Deserialize;
 
-use crate::{error::WorkflowError, runner::Runner, workflow_data::WorkflowData};
+use crate::{
+    error::WorkflowError,
+    runner::{Runner, RunnerOutput},
+    workflow_data::WorkflowData,
+};
 
 #[derive(Deserialize)]
 pub struct Step {
@@ -14,41 +15,52 @@ pub struct Step {
 
 impl Step {
     pub fn execute(
-        &self,
+        self,
+        index: usize,
         workflow_data: &mut WorkflowData,
-        cache: Arc<RwLock<StackCache>>,
     ) -> Result<(), WorkflowError> {
-        if let Some(from) = &self.from {
+        if let Some(from) = self.from {
             let window = workflow_data
                 .windows
-                .get(from)
+                .get(&from)
                 .cloned()
                 .ok_or(WorkflowError::WindowNotFound(from.clone()))?;
             workflow_data.current_window = window;
         }
-        let next_window_start = workflow_data.workspace.stacks.len();
-        let additional_named_windows = self.run.execute(workflow_data, cache)?;
-        let next_window_stop = workflow_data.workspace.stacks.len();
-        let next_window = next_window_start..next_window_stop;
-        if let Some(name) = &self.name {
+        let current_window = workflow_data.current_window_stacks()?;
+        let generated_stacks = self.run.execute(
+            &workflow_data.base,
+            current_window,
+            &mut workflow_data.layers.borrow_mut(),
+        )?;
+        let start = workflow_data.stacks.len();
+        match generated_stacks {
+            RunnerOutput::Serial(generated_stacks) => {
+                workflow_data.stacks.extend(generated_stacks);
+            }
+            RunnerOutput::Named(named_stacks) => {
+                let prefix = self.name.clone().unwrap_or(index.to_string());
+                for (suffix, genenrated_stacks) in named_stacks {
+                    let name = [prefix.to_string(), suffix].join("_");
+                    let start = workflow_data.stacks.len();
+                    workflow_data.stacks.extend(genenrated_stacks);
+                    workflow_data
+                        .windows
+                        .insert(name, start..workflow_data.stacks.len());
+                }
+            }
+            RunnerOutput::None => {}
+        };
+        workflow_data.current_window = start..workflow_data.stacks.len();
+        if let Some(name) = self.name {
             if workflow_data
                 .windows
-                .insert(name.clone(), next_window.clone())
+                .insert(name.to_string(), workflow_data.current_window.clone())
                 .is_some()
             {
-                println!("Operation window named {} is replaced.", name);
-            }
-
-            if let Some(additional_named_windows) = additional_named_windows {
-                workflow_data.windows.extend(
-                    additional_named_windows
-                        .into_iter()
-                        .map(|(add_name, window)| ([name, add_name.as_str()].join("_"), window)),
-                );
+                println!("Over take window named {}", name);
             }
         }
-
-        workflow_data.current_window = next_window;
         Ok(())
     }
 }

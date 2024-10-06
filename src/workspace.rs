@@ -9,7 +9,7 @@ use crate::{
 #[derive(Debug, Clone, Default)]
 pub struct StackCache {
     cache: Option<MoleculeLayer>,
-    children: Box<BTreeMap<usize, StackCache>>,
+    children: BTreeMap<usize, StackCache>,
 }
 
 impl StackCache {
@@ -39,6 +39,7 @@ impl StackCache {
 
 #[derive(Default, Deserialize, Serialize, Clone)]
 pub struct LayerStorage {
+    base: MoleculeLayer,
     layers: BTreeMap<usize, Layer>,
 }
 
@@ -59,10 +60,10 @@ impl LayerStorage {
 
     pub fn create_layers<I>(&mut self, layers: I) -> Range<usize>
     where
-        I: Iterator<Item = Layer>,
+        I: IntoIterator<Item = Layer>,
     {
         let start_id = self.next_layer_id();
-        for (idx, layer) in layers.enumerate() {
+        for (idx, layer) in layers.into_iter().enumerate() {
             self.layers.insert(start_id + idx, layer);
         }
         start_id..self.next_layer_id()

@@ -31,7 +31,7 @@ pub enum SubstituentError {
 impl Substituent {
     pub fn generate_layer(
         &self,
-        base: MoleculeLayer,
+        base: &MoleculeLayer,
         entry: SelectOne,
         target: SelectOne,
     ) -> Result<MoleculeLayer, SubstituentError> {

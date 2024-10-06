@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     collections::BTreeMap,
     ops::Range,
     sync::{Arc, RwLock},
@@ -6,7 +7,7 @@ use std::{
 
 use lme::{
     molecule_layer::MoleculeLayer,
-    workspace::{StackCache, Workspace},
+    workspace::{LayerStorage, StackCache},
 };
 use serde::{Deserialize, Serialize};
 
@@ -14,23 +15,24 @@ use crate::error::WorkflowError;
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct WorkflowData {
-    base: MoleculeLayer,
-    pub workspace: Workspace,
+    pub base: MoleculeLayer,
+    pub layers: RefCell<LayerStorage>,
+    pub stacks: Vec<Vec<usize>>,
     pub windows: BTreeMap<String, Range<usize>>,
     pub current_window: Range<usize>,
 }
 
 impl Default for WorkflowData {
     fn default() -> Self {
-        let base = MoleculeLayer::default();
-        let mut workspace = Workspace::default();
-        workspace.stacks.push(vec![]);
-        let mut windows = BTreeMap::default();
+        let base = Default::default();
+        let layers = Default::default();
+        let stacks = vec![vec![]];
         let current_window = 0..1;
-        windows.insert("base".to_string(), current_window.clone());
+        let windows = BTreeMap::from([("base".to_string(), 0..1)]);
         Self {
             base,
-            workspace,
+            layers,
+            stacks,
             windows,
             current_window,
         }
@@ -42,6 +44,17 @@ impl WorkflowData {
         let mut workflow_data = Self::default();
         workflow_data.base = base;
         workflow_data
+    }
+
+    pub fn current_window_stacks(&self) -> Result<Vec<&Vec<usize>>, WorkflowError> {
+        self.current_window
+            .clone()
+            .map(|index| {
+                self.stacks
+                    .get(index)
+                    .ok_or(WorkflowError::StackIdOutOfRange(index))
+            })
+            .collect()
     }
 
     pub fn read_stack(
@@ -57,7 +70,7 @@ impl WorkflowData {
         if let Some(cached) = cached {
             Ok(cached)
         } else {
-            let data = self.workspace.layers.read_stack(path, self.base.clone())?;
+            let data = self.layers.borrow().read_stack(path, self.base.clone())?;
             let mut writable_cache = cache
                 .write()
                 .expect("cache error, please check error log and retry.");
