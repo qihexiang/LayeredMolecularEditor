@@ -43,7 +43,7 @@ pub struct LayerStorage {
     layers: BTreeMap<usize, Layer>,
 }
 
-#[derive(Serialize, Debug)]
+#[derive(Serialize, Debug, Clone)]
 pub enum LayerStorageError {
     NoSuchLayer(usize),
     FilterError(SelectOne),

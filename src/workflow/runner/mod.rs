@@ -4,12 +4,13 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::process::Command;
 
+use cached::{proc_macro::cached, UnboundCache};
 use lme::chemistry::element_num_to_symbol;
 use lme::io::AtomListMap;
 use lme::layer::{Layer, SelectOne};
 use lme::molecule_layer::{Atom3D, MoleculeLayer};
-use lme::workspace::{LayerStorage, LayerStorageError};
 use lme::serde_default::default_xyz;
+use lme::workspace::{LayerStorage, LayerStorageError};
 use serde::Deserialize;
 use substituent::{Substituent, SubstituentError};
 use tempfile::tempdir;
@@ -73,7 +74,7 @@ impl Runner {
             Self::Function { command, arguments } => {
                 let input = current_window
                     .into_par_iter()
-                    .map(|stack_path| layer_storage.read_stack(stack_path, base.clone()))
+                    .map(|stack_path| cached_read_stack(base, &layer_storage, &stack_path))
                     .collect::<Result<Vec<_>, _>>()?;
                 let input = serde_json::to_string(&input)
                     .map_err(|err| WorkflowError::SerdeJSONError(err))?;
@@ -122,7 +123,7 @@ impl Runner {
                     .collect::<Result<Vec<Substituent>, serde_yaml::Error>>()?;
                 let current_structures = current_window
                     .iter()
-                    .map(|stack_path| layer_storage.read_stack(stack_path, base.clone()))
+                    .map(|stack_path| cached_read_stack(base, &layer_storage, &stack_path))
                     .collect::<Result<Vec<_>, LayerStorageError>>()?;
                 let mut result = BTreeMap::new();
                 for substituent in substituents {
@@ -153,7 +154,7 @@ impl Runner {
                 let outputs = current_window
                     .into_par_iter()
                     .map(|stack_path| {
-                        let data = layer_storage.read_stack(stack_path, base.clone())?;
+                        let data = cached_read_stack(base, &layer_storage, &stack_path)?;
                         let atom_map = AtomListMap::from(&data.atoms);
                         let xyz = data
                             .atoms
@@ -198,5 +199,35 @@ impl Runner {
                 Ok(RunnerOutput::None)
             }
         }
+    }
+}
+
+/// In a workflow, the base and existed layers will not be modified or deleted,
+/// so the result of read_stack function is in fact only dependent on the path
+/// parameter so create a cached function here is reasonable.
+///
+/// The read_stack function may return an Err(LayerStorageError), which
+/// means there might be something wrong in program or input file, and the workflow
+/// will exit, so the cache of error result will never be accessed in practice.
+#[cached(
+    ty = "UnboundCache<String, Result<MoleculeLayer, LayerStorageError>>",
+    create = "{ UnboundCache::new() }",
+    convert = r#"{ stack_path.iter().map(|item| item.to_string()).collect::<Vec<_>>().join("/") }"#
+)]
+fn cached_read_stack(
+    base: &MoleculeLayer,
+    layer_storage: &LayerStorage,
+    stack_path: &[usize],
+) -> Result<MoleculeLayer, LayerStorageError> {
+    if let Some((last, heads)) = stack_path.split_last() {
+        let layer = layer_storage
+            .read_layer(last)
+            .ok_or(LayerStorageError::NoSuchLayer(*last))?;
+        let lower_result = cached_read_stack(base, layer_storage, heads)?;
+        layer
+            .filter(lower_result)
+            .map_err(|err| LayerStorageError::FilterError(err))
+    } else {
+        Ok(base.clone())
     }
 }
