@@ -76,8 +76,8 @@ impl Atom3DList {
             .for_each(|(index, atom)| *atom = atom.or(other.read_atom(index)))
     }
 
-    pub fn to_vec(self) -> Vec<Option<Atom3D>> {
-        self.0
+    pub fn data(&self) -> &Vec<Option<Atom3D>> {
+        &self.0
     }
 }
 

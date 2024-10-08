@@ -8,7 +8,8 @@ use crate::runner::substituent::SubstituentError;
 pub enum WorkflowError {
     WindowNotFound(String),
     SubstituentError(SubstituentError),
-    SerdeError(serde_json::Error),
+    SerdeJSONError(serde_json::Error),
+    SerdeYAMLError(serde_yaml::Error),
     TempDirCreateError(io::Error),
     FileWriteError((PathBuf, io::Error)),
     FileReadError((PathBuf, io::Error)),
@@ -41,7 +42,13 @@ impl From<glob::PatternError> for WorkflowError {
 
 impl From<serde_json::Error> for WorkflowError {
     fn from(value: serde_json::Error) -> Self {
-        Self::SerdeError(value)
+        Self::SerdeJSONError(value)
+    }
+}
+
+impl From<serde_yaml::Error> for WorkflowError {
+    fn from(value: serde_yaml::Error) -> Self {
+        Self::SerdeYAMLError(value)
     }
 }
 

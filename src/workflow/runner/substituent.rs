@@ -16,7 +16,7 @@ pub struct Substituent {
     entry: SelectOne,
     target: SelectOne,
     structure: MoleculeLayer,
-    group_prefix: String,
+    pub substituent_name: String,
 }
 
 #[derive(Debug)]
@@ -82,8 +82,8 @@ impl Substituent {
                 .get_lefts()
                 .into_iter()
                 .map(|current_name| {
-                    let mut updated_name = self.group_prefix.clone();
-                    updated_name.push_str(&current_name);
+                    let updated_name = self.substituent_name.clone();
+                    let updated_name = [updated_name, current_name.to_string()].join("_");
                     substituent
                         .groups
                         .get_left(current_name)
@@ -93,6 +93,7 @@ impl Substituent {
                 .collect::<HashSet<_>>(),
         );
         substituent.ids = HashMap::new();
+        substituent.title = [base.title.to_string(), self.substituent_name.to_string()].join("_");
         entry.set_atom(&mut substituent, Some(target_entry));
         target.set_atom(&mut substituent, Some(exit_atom));
         Ok(substituent)

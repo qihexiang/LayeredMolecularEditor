@@ -124,6 +124,10 @@ lazy_static! {
     ]);
 }
 
+pub fn validated_element_num(input: &usize) -> bool {
+    ELEMENT_SET.iter().find(|(num, _)| num == input).is_some()
+}
+
 pub fn element_num_to_symbol(input: &usize) -> Option<&'static str> {
     ELEMENT_SET
         .iter()
