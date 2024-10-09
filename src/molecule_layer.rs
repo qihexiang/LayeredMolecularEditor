@@ -1,9 +1,9 @@
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use nalgebra::{Isometry3, Point3};
 use serde::{Deserialize, Serialize};
 
-use crate::n_to_n::NtoN;
+use crate::{chemistry::validated_element_num, io::AtomListMap, n_to_n::NtoN};
 
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct Atom3D {
@@ -17,6 +17,23 @@ pub struct Atom3DList(Vec<Option<Atom3D>>);
 impl From<Vec<Atom3D>> for Atom3DList {
     fn from(value: Vec<Atom3D>) -> Self {
         Self(value.into_iter().map(|atom| Some(atom)).collect())
+    }
+}
+
+impl Into<Vec<Atom3D>> for Atom3DList {
+    fn into(self) -> Vec<Atom3D> {
+        self.0
+            .into_iter()
+            .filter_map(|atom| {
+                atom.and_then(|atom| {
+                    if validated_element_num(&atom.element) {
+                        Some(atom)
+                    } else {
+                        None
+                    }
+                })
+            })
+            .collect()
     }
 }
 
@@ -137,7 +154,7 @@ impl BondMatrix {
         self.extend_to(capacity);
         for (row_idx, row) in self.0.iter_mut().enumerate() {
             for (col_idx, cell) in row.iter_mut().enumerate() {
-                *cell = other.read_bond(row_idx, col_idx);
+                *cell = other.read_bond(row_idx, col_idx).or(*cell);
             }
         }
     }
@@ -177,6 +194,69 @@ impl MoleculeLayer {
         );
         Self {
             title: self.title,
+            atoms,
+            bonds,
+            ids,
+            groups,
+        }
+    }
+}
+
+pub struct CompactedMolecule {
+    pub atoms: Vec<Atom3D>,
+    pub bonds: Vec<(usize, usize, f64)>,
+    pub title: String,
+    pub ids: BTreeMap<String, usize>,
+    pub groups: NtoN<String, usize>,
+    pub atom_map: AtomListMap,
+}
+
+impl From<MoleculeLayer> for CompactedMolecule {
+    fn from(value: MoleculeLayer) -> Self {
+        let atom_map = AtomListMap::from(&value.atoms);
+        let atoms: Vec<Atom3D> = value.atoms.into();
+        println!("{:#?}", value.bonds);
+        let mut bonds = Vec::with_capacity(atom_map.len().pow(2));
+        for row_idx in 0..value.bonds.len() {
+            for col_idx in row_idx..value.bonds.len() {
+                println!(
+                    "{} {} {:?} {:?} {:?}",
+                    row_idx,
+                    col_idx,
+                    atom_map.to_compacted_idx(row_idx),
+                    atom_map.to_compacted_idx(col_idx),
+                    value.bonds.read_bond(row_idx, col_idx)
+                );
+                match (
+                    atom_map.to_compacted_idx(row_idx),
+                    atom_map.to_compacted_idx(col_idx),
+                    value.bonds.read_bond(row_idx, col_idx),
+                ) {
+                    (Some(a), Some(b), Some(bond)) => bonds.push((a, b, bond)),
+                    _ => {}
+                }
+            }
+        }
+        let ids = value
+            .ids
+            .into_iter()
+            .filter_map(|(id, index)| atom_map.to_compacted_idx(index).map(|index| (id, index)))
+            .collect::<BTreeMap<_, _>>();
+        let groups = NtoN::from(
+            value
+                .groups
+                .into_iter()
+                .filter_map(|(group_name, index)| {
+                    atom_map
+                        .to_compacted_idx(index)
+                        .map(|index| (group_name, index))
+                })
+                .collect::<HashSet<_>>(),
+        );
+        let title = value.title;
+        Self {
+            title,
+            atom_map,
             atoms,
             bonds,
             ids,
