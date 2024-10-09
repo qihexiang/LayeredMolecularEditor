@@ -10,6 +10,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Layer {
     Fill(MoleculeLayer),
+    SetBond(Vec<(usize, usize, f64)>),
     Plugin {
         plugin_name: String,
         arguments: Vec<String>,
@@ -45,6 +46,11 @@ impl Layer {
     pub fn filter(&self, mut current: MoleculeLayer) -> Result<MoleculeLayer, SelectOne> {
         match self {
             Self::Fill(data) => current.migrate(data),
+            Self::SetBond(bonds) => {
+                for (a, b, bond) in bonds {
+                    current.bonds.set_bond(*a, *b, Some(*bond));
+                }
+            }
             Self::IdMap(data) => current.ids.extend(data.clone()),
             Self::GroupMap(data) => current.groups.extend(data.clone()),
             Self::Plugin { data, .. } => current.migrate(data),
