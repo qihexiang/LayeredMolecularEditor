@@ -12,15 +12,13 @@ use lme::molecule_layer::{Atom3D, MoleculeLayer};
 use lme::serde_default::default_xyz;
 use lme::workspace::{LayerStorage, LayerStorageError};
 use serde::Deserialize;
-use substituent::{Substituent, SubstituentError};
+use lme::substituent::{Substituent, SubstituentError};
 use tempfile::tempdir;
 
 use crate::error::WorkflowError;
 
 use glob::glob;
 use rayon::prelude::*;
-
-pub mod substituent;
 
 #[derive(Deserialize)]
 pub enum Runner {

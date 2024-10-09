@@ -1,7 +1,7 @@
 use lme::workspace::LayerStorageError;
 use std::{io, path::PathBuf, process::ExitStatus};
 
-use crate::runner::substituent::SubstituentError;
+use lme::substituent::SubstituentError;
 
 #[derive(Debug)]
 #[allow(dead_code, reason = "only use for error output")]

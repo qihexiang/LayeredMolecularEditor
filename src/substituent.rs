@@ -3,15 +3,15 @@ use std::{
     f64::consts::PI,
 };
 
-use lme::{
+use crate::{
     layer::{SelectMany, SelectOne},
     molecule_layer::MoleculeLayer,
     n_to_n::NtoN,
 };
 use nalgebra::{Isometry3, Translation3, Unit, UnitQuaternion, Vector3};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct Substituent {
     entry: SelectOne,
     target: SelectOne,
@@ -29,6 +29,20 @@ pub enum SubstituentError {
 }
 
 impl Substituent {
+    pub fn new(
+        entry: SelectOne,
+        target: SelectOne,
+        structure: MoleculeLayer,
+        substituent_name: String,
+    ) -> Self {
+        Self {
+            entry,
+            target,
+            structure,
+            substituent_name,
+        }
+    }
+
     pub fn generate_layer(
         &self,
         base: &MoleculeLayer,
