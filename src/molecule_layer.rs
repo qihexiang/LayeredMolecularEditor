@@ -48,11 +48,9 @@ impl Atom3DList {
     pub fn set_atoms(&mut self, offset: usize, atoms: Vec<Option<Atom3D>>) {
         let len_after_set = (offset + atoms.len() - 1).max(self.len());
         self.extend_to(len_after_set);
-        self.0
-            .iter_mut()
-            .skip(offset)
-            .enumerate()
-            .for_each(|(idx, current)| *current = atoms[idx])
+        for (idx, atom) in atoms.into_iter().enumerate() {
+            self.0[idx + offset] = atom
+        }
     }
 
     pub fn isometry(&mut self, isometry: Isometry3<f64>, select: &BTreeSet<usize>) {
