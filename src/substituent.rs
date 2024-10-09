@@ -13,8 +13,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 pub struct Substituent {
-    entry: SelectOne,
-    target: SelectOne,
+    direction: SelectOne,
+    on_body: SelectOne,
     structure: MoleculeLayer,
     pub substituent_name: String,
 }
@@ -24,20 +24,20 @@ pub struct Substituent {
 pub enum SubstituentError {
     EntryAtomNotFoundInTarget(SelectOne),
     ExitAtomNotFoundInTarget(SelectOne),
-    EntryAtomNotFoundInSubstituent(SelectOne),
-    ExitAtomNotFoundInSusbstituent(SelectOne),
+    DirectionAtomNotFoundInSubstituent(SelectOne),
+    OnBodyAtomNotFoundInSusbstituent(SelectOne),
 }
 
 impl Substituent {
     pub fn new(
-        entry: SelectOne,
-        target: SelectOne,
+        direction: SelectOne,
+        on_body: SelectOne,
         structure: MoleculeLayer,
         substituent_name: String,
     ) -> Self {
         Self {
-            entry,
-            target,
+            direction,
+            on_body,
             structure,
             substituent_name,
         }
@@ -45,51 +45,58 @@ impl Substituent {
 
     pub fn generate_layer(
         &self,
-        base: &MoleculeLayer,
+        target: &MoleculeLayer,
         entry: SelectOne,
-        target: SelectOne,
+        exit: SelectOne,
     ) -> Result<MoleculeLayer, SubstituentError> {
         let target_entry = entry
-            .get_atom(&base)
+            .get_atom(&target)
             .ok_or(SubstituentError::EntryAtomNotFoundInTarget(entry.clone()))?;
-        let target_exit = target
-            .get_atom(&base)
-            .ok_or(SubstituentError::ExitAtomNotFoundInTarget(target.clone()))?;
+        let target_exit = exit
+            .get_atom(&target)
+            .ok_or(SubstituentError::ExitAtomNotFoundInTarget(exit.clone()))?;
         let a = target_exit.position - target_entry.position;
-        let substituent_entry = self.entry.get_atom(&self.structure).ok_or(
-            SubstituentError::EntryAtomNotFoundInSubstituent(self.entry.clone()),
+        let substituent_direction = self.direction.get_atom(&self.structure).ok_or(
+            SubstituentError::DirectionAtomNotFoundInSubstituent(self.direction.clone()),
         )?;
-        let substituent_exit = self.target.get_atom(&self.structure).ok_or(
-            SubstituentError::ExitAtomNotFoundInSusbstituent(self.target.clone()),
+        let substituent_on_body = self.on_body.get_atom(&self.structure).ok_or(
+            SubstituentError::OnBodyAtomNotFoundInSusbstituent(self.on_body.clone()),
         )?;
-        let b = substituent_exit.position - substituent_entry.position;
-        let axis = a.cross(&b);
+        let b = substituent_direction.position - substituent_on_body.position;
+        let axis = b.cross(&a);
         let axis = Unit::new_normalize(if axis.norm() == 0. {
             Vector3::x()
         } else {
             axis
         });
-        let angle = a.dot(&b) / (a.norm() * b.norm());
+        let angle = (b.dot(&a) / (a.norm() * b.norm())).acos();
         let angle = if angle.is_nan() { PI } else { angle };
-        let translation = Translation3::from(target_entry.position - substituent_entry.position);
+        let translation = Translation3::from(target_exit.position - substituent_direction.position);
         let rotation = UnitQuaternion::new(angle * *axis);
         let rotation = Isometry3::from_parts(Translation3::from(Vector3::zeros()), rotation);
         let mut substituent = self.structure.clone();
         let select = SelectMany::All.to_indexes(&substituent);
-        let pre_translation = Translation3::from(-substituent_entry.position);
+        let pre_translation = Translation3::from(-substituent_direction.position);
         let post_translation = pre_translation.inverse();
         substituent.atoms.isometry(pre_translation.into(), &select);
         substituent.atoms.isometry(rotation, &select);
         substituent.atoms.isometry(post_translation.into(), &select);
         substituent.atoms.isometry(translation.into(), &select);
-        self.entry.set_atom(&mut substituent, None);
-        let exit_atom = self
-            .target
+        let replace_atom = self
+            .on_body
             .get_atom(&substituent)
             .expect("unable to get exit atom in substituent");
-        self.target.set_atom(&mut substituent, None);
-        let offset = base.atoms.len();
+        self.direction.set_atom(&mut substituent, None);
+        self.on_body.set_atom(&mut substituent, None);
+        let offset = target.atoms.len();
         let mut substituent = substituent.offset(offset);
+        // set on_body atom on entry position.
+        let entry_index = entry
+            .to_index(target)
+            .expect("here will never return None as the atom got uppon");
+        substituent
+            .atoms
+            .set_atoms(entry_index, vec![Some(replace_atom)]);
         substituent.groups = NtoN::from(
             substituent
                 .groups
@@ -107,9 +114,7 @@ impl Substituent {
                 .collect::<HashSet<_>>(),
         );
         substituent.ids = HashMap::new();
-        substituent.title = [base.title.to_string(), self.substituent_name.to_string()].join("_");
-        entry.set_atom(&mut substituent, Some(target_entry));
-        target.set_atom(&mut substituent, Some(exit_atom));
+        substituent.title = [target.title.to_string(), self.substituent_name.to_string()].join("_");
         Ok(substituent)
     }
 }

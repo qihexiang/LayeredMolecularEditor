@@ -10,9 +10,9 @@ use lme::io::AtomListMap;
 use lme::layer::{Layer, SelectOne};
 use lme::molecule_layer::{Atom3D, MoleculeLayer};
 use lme::serde_default::default_xyz;
+use lme::substituent::{Substituent, SubstituentError};
 use lme::workspace::{LayerStorage, LayerStorageError};
 use serde::Deserialize;
-use lme::substituent::{Substituent, SubstituentError};
 use tempfile::tempdir;
 
 use crate::error::WorkflowError;
@@ -20,12 +20,12 @@ use crate::error::WorkflowError;
 use glob::glob;
 use rayon::prelude::*;
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub enum Runner {
     AddLayers(Vec<Layer>),
     Substituent {
         entry: SelectOne,
-        target: SelectOne,
+        exit: SelectOne,
         file_pattern: String,
     },
     Function {
@@ -105,7 +105,7 @@ impl Runner {
             }
             Self::Substituent {
                 entry,
-                target,
+                exit: target,
                 file_pattern,
             } => {
                 let matched_files = glob(&file_pattern)?.collect::<Result<Vec<_>, _>>()?;
@@ -183,6 +183,9 @@ impl Runner {
                         vec![suffix.clone()],
                     ]
                     .concat()
+                    .into_iter()
+                    .skip_while(|line| line == "")
+                    .collect::<Vec<_>>()
                     .join("\n");
                     path.set_extension(&extension);
                     File::create_new(&path)

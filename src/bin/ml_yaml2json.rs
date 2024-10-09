@@ -2,7 +2,7 @@ use std::fs::File;
 
 use clap::Parser;
 use glob::glob;
-use lme::{molecule_layer::MoleculeLayer, substituent::Substituent};
+use lme::molecule_layer::MoleculeLayer;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -19,12 +19,6 @@ struct Arguments {
     /// - "./**/*.ml.json" matches all ml.json files can be found recursively in current working directory
     #[arg(short, long)]
     input: String,
-    /// Generate output MoleculeLayer file in JSON format.
-    #[arg(short, long)]
-    json: bool,
-    /// Generate output MoleculeLayer file in YAML format.
-    #[arg(short, long)]
-    yaml: bool,
 }
 
 fn main() {
@@ -35,15 +29,8 @@ fn main() {
         println!("Handling file {:#?}", path);
         let file = File::open(&path).unwrap();
         let structure: MoleculeLayer = serde_yaml::from_reader(file).unwrap();
-        let substituent_name = structure.title.clone();
-        let substituent = Substituent::new(
-            lme::layer::SelectOne::Index(0),
-            lme::layer::SelectOne::Index(1),
-            structure,
-            substituent_name,
-        );
-        path.set_extension("substituent.yaml");
+        path.set_extension("json");
         let file = File::create_new(path).unwrap();
-        serde_yaml::to_writer(file, &substituent).unwrap();
+        serde_json::to_writer(file, &structure).unwrap();
     }
 }

@@ -6,7 +6,7 @@ use crate::{
     workflow_data::WorkflowData,
 };
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct Step {
     from: Option<String>,
     name: Option<String>,
@@ -37,6 +37,7 @@ impl Step {
         match generated_stacks {
             RunnerOutput::Serial(generated_stacks) => {
                 workflow_data.stacks.extend(generated_stacks);
+                workflow_data.current_window = start..workflow_data.stacks.len();
             }
             RunnerOutput::Named(named_stacks) => {
                 let prefix = self.name.clone().unwrap_or(index.to_string());
@@ -48,10 +49,10 @@ impl Step {
                         .windows
                         .insert(name, start..workflow_data.stacks.len());
                 }
+                workflow_data.current_window = start..workflow_data.stacks.len();
             }
             RunnerOutput::None => {}
         };
-        workflow_data.current_window = start..workflow_data.stacks.len();
         if let Some(name) = self.name {
             if workflow_data
                 .windows

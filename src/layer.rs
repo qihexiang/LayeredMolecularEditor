@@ -10,6 +10,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Layer {
     Fill(MoleculeLayer),
+    TitleModification {
+        #[serde(default)]
+        prefix: String,
+        #[serde(default)]
+        suffix: String,
+        #[serde(default)]
+        replace: Vec<(String, String)>,
+    },
     SetBond(Vec<(usize, usize, f64)>),
     Plugin {
         plugin_name: String,
@@ -50,6 +58,22 @@ impl Layer {
                 for (a, b, bond) in bonds {
                     current.bonds.set_bond(*a, *b, Some(*bond));
                 }
+            }
+            Self::TitleModification {
+                prefix,
+                suffix,
+                replace,
+            } => {
+                let mut title = current.title.clone();
+                for (from, to) in replace {
+                    title = title.replace(from, to);
+                }
+                current.title = [prefix, &title, suffix]
+                    .into_iter()
+                    .filter(|item| item != &"")
+                    .map(|item| item.clone())
+                    .collect::<Vec<_>>()
+                    .join("_")
             }
             Self::IdMap(data) => current.ids.extend(data.clone()),
             Self::GroupMap(data) => current.groups.extend(data.clone()),

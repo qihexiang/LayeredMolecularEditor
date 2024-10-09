@@ -1,14 +1,6 @@
-use std::{
-    cell::RefCell,
-    collections::BTreeMap,
-    ops::Range,
-    sync::{Arc, RwLock},
-};
+use std::{cell::RefCell, collections::BTreeMap, ops::Range};
 
-use lme::{
-    molecule_layer::MoleculeLayer,
-    workspace::{LayerStorage, StackCache},
-};
+use lme::{molecule_layer::MoleculeLayer, workspace::LayerStorage};
 use serde::{Deserialize, Serialize};
 
 use crate::error::WorkflowError;
@@ -55,30 +47,5 @@ impl WorkflowData {
                     .ok_or(WorkflowError::StackIdOutOfRange(index))
             })
             .collect()
-    }
-
-    pub fn read_stack(
-        &self,
-        path: &[usize],
-        cache: Arc<RwLock<StackCache>>,
-    ) -> Result<MoleculeLayer, WorkflowError> {
-        let cached = cache
-            .read()
-            .expect("cache error, please check error log and retry.")
-            .read_cache(path)
-            .cloned();
-        if let Some(cached) = cached {
-            Ok(cached)
-        } else {
-            let data = self.layers.borrow().read_stack(path, self.base.clone())?;
-            let mut writable_cache = cache
-                .write()
-                .expect("cache error, please check error log and retry.");
-            writable_cache.write_cache(path, data);
-            Ok(writable_cache
-                .read_cache(path)
-                .cloned()
-                .expect("should be able to get here."))
-        }
     }
 }

@@ -23,17 +23,17 @@ impl Mol2Content {
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
-/// Convert XYZ files to MoleculeLayer data in JSON(.ml.json) or YAML(.ml.yaml) format.
+/// Convert mol2 files to MoleculeLayer data in JSON(.ml.json) or YAML(.ml.yaml) format.
 ///
-/// If neither -j/--json nor -y/--yaml is set, nothing will be output but check the XYZ files could be convert.
+/// If neither -j/--json nor -y/--yaml is set, nothing will be output but check the mol2 files could be convert.
 struct Arguments {
     /// Give the global file match pattern, for example:
     ///
-    /// - "./*.xyz" matches all xyz files in current working directory
+    /// - "./*.mol2" matches all mol2 files in current working directory
     ///
-    /// - "./abc-*.xyz" matches all xyz files starts with abc- in current working directory
+    /// - "./abc-*.mol2" matches all mol2 files starts with abc- in current working directory
     ///
-    /// - "./**/*.xyz" matches all xyz files can be found recursively in current working directory
+    /// - "./**/*.mol2" matches all mol2 files can be found recursively in current working directory
     #[arg(short, long)]
     input: String,
     /// Generate output MoleculeLayer file in JSON format.
@@ -97,7 +97,9 @@ fn main() {
                     let a = line_items.next().unwrap();
                     let b = line_items.next().unwrap();
                     let bond = line_items.next().unwrap();
-                    let [a, b] = [a, b].map(|item| -> usize { item.parse().unwrap() }).map(|item| item - 1);
+                    let [a, b] = [a, b]
+                        .map(|item| -> usize { item.parse().unwrap() })
+                        .map(|item| item - 1);
                     let bond = match bond {
                         "ar" | "Ar" | "AR" => 1.5,
                         value => value.parse().unwrap(),

@@ -71,7 +71,7 @@ impl Atom3DList {
         self.0
             .iter_mut()
             .enumerate()
-            .for_each(|(index, atom)| *atom = atom.or(other.read_atom(index)))
+            .for_each(|(index, atom)| *atom = other.read_atom(index).or(*atom))
     }
 
     pub fn data(&self) -> &Vec<Option<Atom3D>> {

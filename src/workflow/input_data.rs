@@ -6,6 +6,8 @@ use crate::{step::Step, workflow_data::WorkflowData};
 #[derive(Deserialize, Default)]
 pub struct WorkflowInput {
     #[serde(default)]
+    pub no_checkpoint: bool,
+    #[serde(default)]
     pub base: MoleculeLayer,
     pub steps: Vec<Step>,
 }
