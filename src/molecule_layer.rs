@@ -138,6 +138,10 @@ impl BondMatrix {
         self.0.get(a)?.get(b).copied().flatten()
     }
 
+    pub fn get_neighbors(&self, center: usize) -> Option<impl Iterator<Item = &Option<f64>>> {
+        Some(self.0.get(center)?.iter())
+    }
+
     pub fn set_bond(&mut self, a: usize, b: usize, bond: Option<f64>) -> bool {
         let max_index = a.max(b);
         if max_index >= self.len() {
@@ -215,24 +219,19 @@ impl From<MoleculeLayer> for CompactedMolecule {
     fn from(value: MoleculeLayer) -> Self {
         let atom_map = AtomListMap::from(&value.atoms);
         let atoms: Vec<Atom3D> = value.atoms.into();
-        println!("{:#?}", value.bonds);
         let mut bonds = Vec::with_capacity(atom_map.len().pow(2));
         for row_idx in 0..value.bonds.len() {
             for col_idx in row_idx..value.bonds.len() {
-                println!(
-                    "{} {} {:?} {:?} {:?}",
-                    row_idx,
-                    col_idx,
-                    atom_map.to_compacted_idx(row_idx),
-                    atom_map.to_compacted_idx(col_idx),
-                    value.bonds.read_bond(row_idx, col_idx)
-                );
                 match (
                     atom_map.to_compacted_idx(row_idx),
                     atom_map.to_compacted_idx(col_idx),
                     value.bonds.read_bond(row_idx, col_idx),
                 ) {
-                    (Some(a), Some(b), Some(bond)) => bonds.push((a, b, bond)),
+                    (Some(a), Some(b), Some(bond)) => {
+                        if bond != 0. {
+                            bonds.push((a, b, bond))
+                        }
+                    }
                     _ => {}
                 }
             }

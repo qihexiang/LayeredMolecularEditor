@@ -97,6 +97,22 @@ impl Substituent {
         substituent
             .atoms
             .set_atoms(entry_index, vec![Some(replace_atom)]);
+        let neighbors = substituent
+            .bonds
+            .get_neighbors(
+                self.on_body
+                    .to_index(&substituent)
+                    .expect("Index should be able to get here.") + offset,
+            )
+            .expect("Neighbors should be able to get here.")
+            .cloned()
+            .collect::<Vec<_>>();
+        for (index, bond) in neighbors.into_iter().enumerate() {
+            if bond.is_some() {
+                println!("{}", index);
+            }
+            substituent.bonds.set_bond(entry_index, index, bond);
+        }
         substituent.groups = NtoN::from(
             substituent
                 .groups

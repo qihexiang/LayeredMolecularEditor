@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -8,7 +8,7 @@ use cached::{proc_macro::cached, UnboundCache};
 use lme::chemistry::element_num_to_symbol;
 use lme::io::AtomListMap;
 use lme::layer::{Layer, SelectOne};
-use lme::molecule_layer::{Atom3D, MoleculeLayer};
+use lme::molecule_layer::{Atom3D, CompactedMolecule, MoleculeLayer};
 use lme::serde_default::default_xyz;
 use lme::substituent::{Substituent, SubstituentError};
 use lme::workspace::{LayerStorage, LayerStorageError};
@@ -38,6 +38,11 @@ pub enum Runner {
         path_prefix: String,
         #[serde(default = "default_xyz")]
         extension: String,
+    },
+    OutputMOL2 {
+        prefix: String,
+        suffix: String,
+        path_prefix: String,
     },
 }
 
@@ -196,6 +201,76 @@ impl Runner {
                     let atom_map_file = File::create_new(&path)
                         .map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?;
                     serde_json::to_writer(atom_map_file, &atom_map)?;
+                }
+                Ok(RunnerOutput::None)
+            }
+            Runner::OutputMOL2 {
+                prefix,
+                suffix,
+                path_prefix,
+            } => {
+                let outputs = current_window
+                    .into_par_iter()
+                    .map(|stack_path| {
+                        let data = cached_read_stack(base, &layer_storage, &stack_path)?;
+                        let compacted = CompactedMolecule::from(data);
+                        Ok(compacted)
+                    })
+                    .collect::<Result<Vec<_>, LayerStorageError>>()?;
+                let path = PathBuf::from(&path_prefix);
+                for output in outputs {
+                    let path = path.clone();
+                    let mut path = path.join(&output.title);
+                    let atoms = output
+                        .atoms
+                        .into_par_iter()
+                        .enumerate()
+                        .map(|(index, atom)| {
+                            format!(
+                                "{} {} {} {} {} {}",
+                                index + 1,
+                                element_num_to_symbol(&atom.element).unwrap(),
+                                atom.position.x,
+                                atom.position.y,
+                                atom.position.z,
+                                element_num_to_symbol(&atom.element).unwrap()
+                            )
+                        })
+                        .collect::<Vec<_>>();
+                    let bonds = output
+                        .bonds
+                        .into_par_iter()
+                        .enumerate()
+                        .map(|(index, (a, b, bond))| {
+                            let bond = if bond == 1.5 {
+                                "ar".to_string()
+                            } else {
+                                bond.to_string()
+                            };
+                            format!("{} {} {} {}", index + 1, a + 1, b + 1, bond)
+                        })
+                        .collect::<Vec<_>>();
+                    let content = vec![
+                        vec![prefix.clone(), "@<TRIPOS>MOLECULE".to_string(), output.title, format!("{} {} 0 0 0", atoms.len(), bonds.len()), "SMALL".to_string(), "GASTEIGER".to_string(), "".to_string(), "@<TRIPOS>ATOM".to_string()],
+                        atoms,
+                        vec!["@<TRIPOS>BOND".to_string()],
+                        bonds,
+                        vec![suffix.clone()],
+                    ]
+                    .concat()
+                    .into_iter()
+                    .skip_while(|line| line == "")
+                    .collect::<Vec<_>>()
+                    .join("\n");
+                    path.set_extension("mol2");
+                    File::create_new(&path)
+                        .map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?
+                        .write_all(content.as_bytes())
+                        .map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?;
+                    path.set_extension("atommap.json");
+                    let atom_map_file = File::create_new(&path)
+                        .map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?;
+                    serde_json::to_writer(atom_map_file, &output.atom_map)?;
                 }
                 Ok(RunnerOutput::None)
             }
