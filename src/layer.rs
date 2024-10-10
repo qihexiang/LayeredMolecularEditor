@@ -3,6 +3,8 @@ use std::collections::{BTreeSet, HashMap};
 use crate::{
     molecule_layer::{Atom3D, MoleculeLayer},
     n_to_n::NtoN,
+    serde_default::default_x_axis,
+    substituent::axis_angle_for_b2a,
 };
 use nalgebra::{Isometry3, Point3, Translation3, Vector3};
 use serde::{Deserialize, Serialize};
@@ -27,6 +29,11 @@ pub enum Layer {
     IdMap(HashMap<String, usize>),
     GroupMap(NtoN<String, usize>),
     SetCenter(SelectOne),
+    DirectionAlgin {
+        select: SelectOne,
+        #[serde(default = "default_x_axis")]
+        direction: Vector3<f64>,
+    },
     Translation {
         select: SelectMany,
         vector: Vector3<f64>,
@@ -79,9 +86,7 @@ impl Layer {
             Self::GroupMap(data) => current.groups.extend(data.clone()),
             Self::Plugin { data, .. } => current.migrate(data),
             Self::SetCenter(select) => {
-                let target_atom = select
-                    .to_index(&current)
-                    .and_then(|index| current.atoms.read_atom(index));
+                let target_atom = select.get_atom(&current);
                 if let Some(target_atom) = target_atom {
                     let translation = Point3::origin() - target_atom.position;
                     let translation =
@@ -92,6 +97,15 @@ impl Layer {
                 } else {
                     Err(select.clone())?
                 }
+            }
+            Self::DirectionAlgin { select, direction } => {
+                let target_atom = select.get_atom(&current).ok_or(select.clone())?;
+                let current_direction = target_atom.position - Point3::default();
+                let (axis, angle) = axis_angle_for_b2a(*direction, current_direction);
+                let rotation = Isometry3::rotation(*axis * angle);
+                current
+                    .atoms
+                    .isometry(rotation, &SelectMany::All.to_indexes(&current));
             }
             Self::Translation { select, vector } => {
                 let translation = Isometry3::translation(vector.x, vector.y, vector.z);
@@ -105,9 +119,7 @@ impl Layer {
                 axis,
                 angle,
             } => {
-                let center_atom = center
-                    .to_index(&current)
-                    .and_then(|index| current.atoms.read_atom(index));
+                let center_atom = center.get_atom(&current);
                 if let Some(center) = center_atom {
                     let move_to_origin = Point3::origin() - center.position;
                     let move_to_origin =

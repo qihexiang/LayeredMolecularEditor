@@ -8,7 +8,7 @@ use crate::{
     molecule_layer::MoleculeLayer,
     n_to_n::NtoN,
 };
-use nalgebra::{Isometry3, Translation3, Unit, UnitQuaternion, Vector3};
+use nalgebra::{Isometry3, Translation3, Unit, Vector3};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
@@ -63,17 +63,9 @@ impl Substituent {
             SubstituentError::OnBodyAtomNotFoundInSusbstituent(self.on_body.clone()),
         )?;
         let b = substituent_direction.position - substituent_on_body.position;
-        let axis = b.cross(&a);
-        let axis = Unit::new_normalize(if axis.norm() == 0. {
-            Vector3::x()
-        } else {
-            axis
-        });
-        let angle = (b.dot(&a) / (a.norm() * b.norm())).acos();
-        let angle = if angle.is_nan() { PI } else { angle };
+        let (axis, angle) = axis_angle_for_b2a(a, b);
         let translation = Translation3::from(target_exit.position - substituent_direction.position);
-        let rotation = UnitQuaternion::new(angle * *axis);
-        let rotation = Isometry3::from_parts(Translation3::from(Vector3::zeros()), rotation);
+        let rotation = Isometry3::rotation(*axis * angle);
         let mut substituent = self.structure.clone();
         let select = SelectMany::All.to_indexes(&substituent);
         let pre_translation = Translation3::from(-substituent_direction.position);
@@ -102,15 +94,13 @@ impl Substituent {
             .get_neighbors(
                 self.on_body
                     .to_index(&substituent)
-                    .expect("Index should be able to get here.") + offset,
+                    .expect("Index should be able to get here.")
+                    + offset,
             )
             .expect("Neighbors should be able to get here.")
             .cloned()
             .collect::<Vec<_>>();
         for (index, bond) in neighbors.into_iter().enumerate() {
-            if bond.is_some() {
-                println!("{}", index);
-            }
             substituent.bonds.set_bond(entry_index, index, bond);
         }
         substituent.groups = NtoN::from(
@@ -133,4 +123,16 @@ impl Substituent {
         substituent.title = [target.title.to_string(), self.substituent_name.to_string()].join("_");
         Ok(substituent)
     }
+}
+
+pub fn axis_angle_for_b2a(a: Vector3<f64>, b: Vector3<f64>) -> (Unit<Vector3<f64>>, f64) {
+    let axis = b.cross(&a);
+    let axis = Unit::new_normalize(if axis.norm() == 0. {
+        Vector3::x()
+    } else {
+        axis
+    });
+    let angle = (b.dot(&a) / (a.norm() * b.norm())).acos();
+    let angle = if angle.is_nan() { PI } else { angle };
+    (axis, angle)
 }
