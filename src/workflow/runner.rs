@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, VecDeque};
+use std::collections::BTreeMap;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -251,7 +251,16 @@ impl Runner {
                         })
                         .collect::<Vec<_>>();
                     let content = vec![
-                        vec![prefix.clone(), "@<TRIPOS>MOLECULE".to_string(), output.title, format!("{} {} 0 0 0", atoms.len(), bonds.len()), "SMALL".to_string(), "GASTEIGER".to_string(), "".to_string(), "@<TRIPOS>ATOM".to_string()],
+                        vec![
+                            prefix.clone(),
+                            "@<TRIPOS>MOLECULE".to_string(),
+                            output.title,
+                            format!("{} {} 0 0 0", atoms.len(), bonds.len()),
+                            "SMALL".to_string(),
+                            "GASTEIGER".to_string(),
+                            "".to_string(),
+                            "@<TRIPOS>ATOM".to_string(),
+                        ],
                         atoms,
                         vec!["@<TRIPOS>BOND".to_string()],
                         bonds,

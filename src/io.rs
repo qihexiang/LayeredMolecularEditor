@@ -18,7 +18,8 @@ impl AtomListMap {
                     .iter()
                     .take(index + 1)
                     .filter(|value| value.unwrap_or_default())
-                    .count() - 1
+                    .count()
+                    - 1,
             )
         } else {
             None
