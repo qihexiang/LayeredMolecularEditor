@@ -1,4 +1,4 @@
-use lme::workspace::LayerStorageError;
+use lme::{io::CompactedMoleculeError, workspace::LayerStorageError};
 use std::{io, path::PathBuf, process::ExitStatus};
 
 use lme::substituent::SubstituentError;
@@ -6,6 +6,7 @@ use lme::substituent::SubstituentError;
 #[derive(Debug)]
 #[allow(dead_code, reason = "only use for error output")]
 pub enum WorkflowError {
+    InputFileNotFound,
     WindowNotFound(String),
     SubstituentError(SubstituentError),
     SerdeJSONError(serde_json::Error),
@@ -20,6 +21,13 @@ pub enum WorkflowError {
     LayerError(LayerStorageError),
     FilePatternError(glob::PatternError),
     GlobError(glob::GlobError),
+    CompactError(CompactedMoleculeError),
+}
+
+impl From<CompactedMoleculeError> for WorkflowError {
+    fn from(value: CompactedMoleculeError) -> Self {
+        Self::CompactError(value)
+    }
 }
 
 impl From<SubstituentError> for WorkflowError {
