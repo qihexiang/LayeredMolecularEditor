@@ -1,9 +1,9 @@
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use nalgebra::{Isometry3, Point3};
 use serde::{Deserialize, Serialize};
 
-use crate::{chemistry::validated_element_num, io::AtomListMap, n_to_n::NtoN};
+use crate::{chemistry::validated_element_num, n_to_n::NtoN};
 
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
 pub struct Atom3D {
@@ -108,7 +108,7 @@ impl BondMatrix {
         Self(vec![vec![Some(0.); capacity]; capacity])
     }
 
-    fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.0.len()
     }
 
@@ -198,64 +198,6 @@ impl MoleculeLayer {
         );
         Self {
             title: self.title,
-            atoms,
-            bonds,
-            ids,
-            groups,
-        }
-    }
-}
-
-pub struct CompactedMolecule {
-    pub atoms: Vec<Atom3D>,
-    pub bonds: Vec<(usize, usize, f64)>,
-    pub title: String,
-    pub ids: BTreeMap<String, usize>,
-    pub groups: NtoN<String, usize>,
-    pub atom_map: AtomListMap,
-}
-
-impl From<MoleculeLayer> for CompactedMolecule {
-    fn from(value: MoleculeLayer) -> Self {
-        let atom_map = AtomListMap::from(&value.atoms);
-        let atoms: Vec<Atom3D> = value.atoms.into();
-        let mut bonds = Vec::with_capacity(atom_map.len().pow(2));
-        for row_idx in 0..value.bonds.len() {
-            for col_idx in row_idx..value.bonds.len() {
-                match (
-                    atom_map.to_compacted_idx(row_idx),
-                    atom_map.to_compacted_idx(col_idx),
-                    value.bonds.read_bond(row_idx, col_idx),
-                ) {
-                    (Some(a), Some(b), Some(bond)) => {
-                        if bond != 0. {
-                            bonds.push((a, b, bond))
-                        }
-                    }
-                    _ => {}
-                }
-            }
-        }
-        let ids = value
-            .ids
-            .into_iter()
-            .filter_map(|(id, index)| atom_map.to_compacted_idx(index).map(|index| (id, index)))
-            .collect::<BTreeMap<_, _>>();
-        let groups = NtoN::from(
-            value
-                .groups
-                .into_iter()
-                .filter_map(|(group_name, index)| {
-                    atom_map
-                        .to_compacted_idx(index)
-                        .map(|index| (group_name, index))
-                })
-                .collect::<HashSet<_>>(),
-        );
-        let title = value.title;
-        Self {
-            title,
-            atom_map,
             atoms,
             bonds,
             ids,

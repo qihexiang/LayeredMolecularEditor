@@ -5,11 +5,9 @@ use std::path::PathBuf;
 use std::process::Command;
 
 use cached::{proc_macro::cached, UnboundCache};
-use lme::chemistry::element_num_to_symbol;
-use lme::io::AtomListMap;
+use lme::io::{CompactedMolecule, CompactedMoleculeError};
 use lme::layer::{Layer, SelectOne};
-use lme::molecule_layer::{Atom3D, CompactedMolecule, MoleculeLayer};
-use lme::serde_default::default_xyz;
+use lme::molecule_layer::MoleculeLayer;
 use lme::substituent::{Substituent, SubstituentError};
 use lme::workspace::{LayerStorage, LayerStorageError};
 use serde::Deserialize;
@@ -32,18 +30,15 @@ pub enum Runner {
         command: String,
         arguments: Vec<String>,
     },
-    OutputXYZ {
+    Output {
+        #[serde(default)]
         prefix: String,
+        #[serde(default)]
         suffix: String,
-        path_prefix: String,
-        #[serde(default = "default_xyz")]
-        extension: String,
-    },
-    OutputMOL2 {
-        prefix: String,
-        suffix: String,
-        path_prefix: String,
-    },
+        #[serde(default)]
+        target_direcotry: PathBuf,
+        target_format: String
+    }
 }
 
 #[derive(Deserialize)]
@@ -148,137 +143,26 @@ impl Runner {
                 }
                 Ok(RunnerOutput::Named(result))
             }
-            Runner::OutputXYZ {
-                prefix,
-                suffix,
-                path_prefix: filename_pattern,
-                extension,
-            } => {
+            Runner::Output { prefix, suffix, target_direcotry, target_format } => {
                 let outputs = current_window
                     .into_par_iter()
                     .map(|stack_path| {
                         let data = cached_read_stack(base, &layer_storage, &stack_path)?;
-                        let atom_map = AtomListMap::from(&data.atoms);
-                        let xyz = data
-                            .atoms
-                            .data()
-                            .iter()
-                            .filter_map(|atom| {
-                                atom.and_then(|Atom3D { element, position }| {
-                                    element_num_to_symbol(&element).map(|element| {
-                                        format!(
-                                            "{} {} {} {}",
-                                            element, position.x, position.y, position.z
-                                        )
-                                    })
-                                })
-                            })
-                            .collect::<Vec<_>>();
-                        Ok((data.title, atom_map, xyz))
+                        Ok(CompactedMolecule::from(data))
                     })
                     .collect::<Result<Vec<_>, LayerStorageError>>()?;
-                let path = PathBuf::from(&filename_pattern);
-                for (title, atom_map, xyz) in outputs {
-                    let path = path.clone();
-                    let mut path = path.join(&title);
-                    let atoms_len = xyz.len().to_string();
-                    let content = [
-                        vec![prefix.clone(), atoms_len, title],
-                        xyz,
-                        vec![suffix.clone()],
-                    ]
-                    .concat()
-                    .into_iter()
-                    .skip_while(|line| line == "")
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                    path.set_extension(&extension);
-                    File::create_new(&path)
-                        .map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?
-                        .write_all(content.as_bytes())
-                        .map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?;
-                    path.set_extension("atommap.json");
-                    let atom_map_file = File::create_new(&path)
-                        .map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?;
-                    serde_json::to_writer(atom_map_file, &atom_map)?;
-                }
-                Ok(RunnerOutput::None)
-            }
-            Runner::OutputMOL2 {
-                prefix,
-                suffix,
-                path_prefix,
-            } => {
-                let outputs = current_window
-                    .into_par_iter()
-                    .map(|stack_path| {
-                        let data = cached_read_stack(base, &layer_storage, &stack_path)?;
-                        let compacted = CompactedMolecule::from(data);
-                        Ok(compacted)
-                    })
-                    .collect::<Result<Vec<_>, LayerStorageError>>()?;
-                let path = PathBuf::from(&path_prefix);
                 for output in outputs {
-                    let path = path.clone();
-                    let mut path = path.join(&output.title);
-                    let atoms = output
-                        .atoms
-                        .into_par_iter()
-                        .enumerate()
-                        .map(|(index, atom)| {
-                            format!(
-                                "{} {} {} {} {} {}",
-                                index + 1,
-                                element_num_to_symbol(&atom.element).unwrap(),
-                                atom.position.x,
-                                atom.position.y,
-                                atom.position.z,
-                                element_num_to_symbol(&atom.element).unwrap()
-                            )
-                        })
-                        .collect::<Vec<_>>();
-                    let bonds = output
-                        .bonds
-                        .into_par_iter()
-                        .enumerate()
-                        .map(|(index, (a, b, bond))| {
-                            let bond = if bond == 1.5 {
-                                "ar".to_string()
-                            } else {
-                                bond.to_string()
-                            };
-                            format!("{} {} {} {}", index + 1, a + 1, b + 1, bond)
-                        })
-                        .collect::<Vec<_>>();
-                    let content = vec![
-                        vec![
-                            prefix.clone(),
-                            "@<TRIPOS>MOLECULE".to_string(),
-                            output.title,
-                            format!("{} {} 0 0 0", atoms.len(), bonds.len()),
-                            "SMALL".to_string(),
-                            "GASTEIGER".to_string(),
-                            "".to_string(),
-                            "@<TRIPOS>ATOM".to_string(),
-                        ],
-                        atoms,
-                        vec!["@<TRIPOS>BOND".to_string()],
-                        bonds,
-                        vec![suffix.clone()],
-                    ]
-                    .concat()
-                    .into_iter()
-                    .skip_while(|line| line == "")
-                    .collect::<Vec<_>>()
-                    .join("\n");
-                    path.set_extension("mol2");
-                    File::create_new(&path)
-                        .map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?
-                        .write_all(content.as_bytes())
-                        .map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?;
+                    let mut path = target_direcotry.clone().join(&output.title);
+                    let content = match target_format.as_str() {
+                        "xyz" => {output.output_to_xyz()},
+                        "mol2" => {output.output_to_mol2()},
+                        format => {Err(CompactedMoleculeError::UnsupportedFormat(format.to_string()))}
+                    }?;
+                    let content = [prefix.clone(), content, suffix.clone()].into_iter().filter(|part| part != "").collect::<Vec<_>>().join("\n");
+                    let mut file = File::create_new(&path).map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?;
+                    file.write_all(content.as_bytes()).map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?;
                     path.set_extension("atommap.json");
-                    let atom_map_file = File::create_new(&path)
-                        .map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?;
+                    let atom_map_file = File::create_new(&path).map_err(|err| WorkflowError::FileWriteError((path.clone(), err)))?;
                     serde_json::to_writer(atom_map_file, &output.atom_map)?;
                 }
                 Ok(RunnerOutput::None)
