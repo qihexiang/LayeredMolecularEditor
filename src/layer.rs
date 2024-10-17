@@ -163,6 +163,7 @@ impl Layer {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum SelectOne {
     Index(usize),
     IdName(String),
@@ -188,9 +189,10 @@ impl SelectOne {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum SelectMany {
     All,
-    Number(usize),
+    Element(usize),
     Indexes(BTreeSet<usize>),
     GroupName(String),
 }
@@ -199,7 +201,7 @@ impl SelectMany {
     pub fn to_indexes(&self, layer: &MoleculeLayer) -> BTreeSet<usize> {
         match self {
             Self::All => (0..layer.atoms.len()).collect(),
-            Self::Number(number) => (0..layer.atoms.len())
+            Self::Element(number) => (0..layer.atoms.len())
                 .filter(|index| {
                     if let Some(atom) = layer.atoms.read_atom(*index) {
                         atom.element == *number
