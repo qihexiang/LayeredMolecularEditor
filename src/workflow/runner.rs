@@ -143,7 +143,7 @@ impl Runner {
                 }
                 Ok(RunnerOutput::Named(result))
             }
-            Runner::Output { prefix, suffix, target_direcotry, target_format } => {
+            Self::Output { prefix, suffix, target_direcotry, target_format } => {
                 let outputs = current_window
                     .into_par_iter()
                     .map(|stack_path| {
