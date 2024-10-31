@@ -1,7 +1,7 @@
+use anyhow::{Context, Result};
 use serde::Deserialize;
 
 use crate::{
-    error::WorkflowError,
     runner::{Runner, RunnerOutput},
     workflow_data::WorkflowData,
 };
@@ -14,17 +14,13 @@ pub struct Step {
 }
 
 impl Step {
-    pub fn execute(
-        self,
-        index: usize,
-        workflow_data: &mut WorkflowData,
-    ) -> Result<(), WorkflowError> {
+    pub fn execute(self, index: usize, workflow_data: &mut WorkflowData) -> Result<()> {
         if let Some(from) = self.from {
             let window = workflow_data
                 .windows
                 .get(&from)
                 .cloned()
-                .ok_or(WorkflowError::WindowNotFound(from.clone()))?;
+                .with_context(|| format!("Failed to load window with name {}", from))?;
             workflow_data.current_window = window;
         }
         let current_window = workflow_data.current_window_stacks()?;

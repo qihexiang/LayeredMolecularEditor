@@ -1,14 +1,14 @@
 use serde::{Deserialize, Serialize};
 use std::{collections::BTreeMap, ops::Range};
 
-use crate::{
+use lme::{
     layer::{Layer, SelectOne},
-    molecule_layer::MoleculeLayer,
+    sparse_molecule::SparseMolecule,
 };
 
 #[derive(Default, Deserialize, Serialize, Clone)]
 pub struct LayerStorage {
-    base: MoleculeLayer,
+    base: SparseMolecule,
     layers: BTreeMap<usize, Layer>,
 }
 
@@ -17,6 +17,14 @@ pub enum LayerStorageError {
     NoSuchLayer(usize),
     FilterError(SelectOne),
 }
+
+impl std::fmt::Display for LayerStorageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?}", self)
+    }
+}
+
+impl std::error::Error for LayerStorageError {}
 
 impl LayerStorage {
     fn next_layer_id(&self) -> usize {
@@ -53,8 +61,8 @@ impl LayerStorage {
     pub fn read_stack(
         &self,
         stack_path: &[usize],
-        mut base: MoleculeLayer,
-    ) -> Result<MoleculeLayer, LayerStorageError> {
+        mut base: SparseMolecule,
+    ) -> Result<SparseMolecule, LayerStorageError> {
         for layer_id in stack_path {
             base = self
                 .layers

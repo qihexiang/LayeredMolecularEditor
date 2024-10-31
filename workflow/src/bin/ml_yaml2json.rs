@@ -2,7 +2,7 @@ use std::fs::File;
 
 use clap::Parser;
 use glob::glob;
-use lme::molecule_layer::MoleculeLayer;
+use lme::sparse_molecule::SparseMolecule;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -28,7 +28,7 @@ fn main() {
         let mut path = path.unwrap();
         println!("Handling file {:#?}", path);
         let file = File::open(&path).unwrap();
-        let structure: MoleculeLayer = serde_yaml::from_reader(file).unwrap();
+        let structure: SparseMolecule = serde_yaml::from_reader(file).unwrap();
         path.set_extension("json");
         let file = File::create_new(path).unwrap();
         serde_json::to_writer(file, &structure).unwrap();

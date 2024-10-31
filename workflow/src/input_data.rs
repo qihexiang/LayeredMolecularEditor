@@ -1,14 +1,14 @@
-use lme::molecule_layer::MoleculeLayer;
+use lme::sparse_molecule::SparseMolecule;
 use serde::{Deserialize, Serialize};
 
 use crate::{step::Step, workflow_data::WorkflowData};
 
-#[derive(Deserialize, Default)]
+#[derive(Deserialize, Default, Debug)]
 pub struct WorkflowInput {
     #[serde(default)]
     pub no_checkpoint: bool,
     #[serde(default)]
-    pub base: MoleculeLayer,
+    pub base: SparseMolecule,
     pub steps: Vec<Step>,
 }
 

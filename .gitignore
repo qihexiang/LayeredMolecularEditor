@@ -1,2 +1,5 @@
 /target
-/data
+*.xyz
+*.mol2
+*.json
+*.yaml

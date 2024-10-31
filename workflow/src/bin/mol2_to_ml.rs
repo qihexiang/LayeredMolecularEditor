@@ -2,11 +2,8 @@ use std::{collections::HashMap, fs::File, io::Read};
 
 use clap::Parser;
 use glob::glob;
-use lme::{
-    chemistry::element_symbol_to_num,
-    molecule_layer::{Atom3D, Atom3DList, BondMatrix, MoleculeLayer},
-    n_to_n::NtoN,
-};
+use lme::{chemistry::{element_symbol_to_num, Atom3D}, sparse_molecule::{SparseAtomList, SparseBondMatrix, SparseMolecule}};
+use n_to_n::NtoN;
 use nalgebra::Point3;
 
 struct Mol2Content {
@@ -116,10 +113,10 @@ fn main() {
 
         let size = content.len();
 
-        let mut molecule_layer = MoleculeLayer {
+        let mut molecule_layer = SparseMolecule {
             title: content.title,
-            atoms: Atom3DList::from(content.atoms),
-            bonds: BondMatrix::new(size),
+            atoms: SparseAtomList::from(content.atoms),
+            bonds: SparseBondMatrix::new(size),
             ids: HashMap::new(),
             groups: NtoN::new(),
         };

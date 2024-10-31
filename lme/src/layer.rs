@@ -1,17 +1,16 @@
 use std::collections::{BTreeSet, HashMap};
 
-use crate::{
-    molecule_layer::{Atom3D, MoleculeLayer},
-    n_to_n::NtoN,
-    serde_default::default_x_axis,
-    substituent::axis_angle_for_b2a,
-};
+use n_to_n::NtoN;
 use nalgebra::{Isometry3, Point3, Translation3, Vector3};
 use serde::{Deserialize, Serialize};
 
+use crate::{
+    chemistry::Atom3D, sparse_molecule::SparseMolecule, utils::geometric::axis_angle_for_b2a,
+};
+
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Layer {
-    Fill(MoleculeLayer),
+    Fill(SparseMolecule),
     TitleModification {
         #[serde(default)]
         prefix: String,
@@ -20,18 +19,27 @@ pub enum Layer {
         #[serde(default)]
         replace: Vec<(String, String)>,
     },
+    SetAtom {
+        target: SelectOne,
+        atom: Option<Atom3D>,
+    },
+    AppendAtoms(Vec<Atom3D>),
     SetBond(Vec<(usize, usize, f64)>),
     Plugin {
         plugin_name: String,
         arguments: Vec<String>,
-        data: MoleculeLayer,
+        data: SparseMolecule,
     },
     IdMap(HashMap<String, usize>),
     GroupMap(NtoN<String, usize>),
-    SetCenter(SelectOne),
+    SetCenter {
+        select: SelectOne,
+        #[serde(default)]
+        center: Point3<f64>
+    },
     DirectionAlgin {
         select: SelectOne,
-        #[serde(default = "default_x_axis")]
+        #[serde(default = "Vector3::x")]
         direction: Vector3<f64>,
     },
     Translation {
@@ -58,13 +66,22 @@ impl Default for Layer {
 }
 
 impl Layer {
-    pub fn filter(&self, mut current: MoleculeLayer) -> Result<MoleculeLayer, SelectOne> {
+    pub fn filter(&self, mut current: SparseMolecule) -> Result<SparseMolecule, SelectOne> {
         match self {
             Self::Fill(data) => current.migrate(data),
             Self::SetBond(bonds) => {
                 for (a, b, bond) in bonds {
                     current.bonds.set_bond(*a, *b, Some(*bond));
                 }
+            }
+            Self::SetAtom { target, atom } => {
+                target.set_atom(&mut current, atom.clone());
+            }
+            Self::AppendAtoms(atoms) => {
+                current.atoms.set_atoms(
+                    current.atoms.len(),
+                    atoms.iter().map(|atom| Some(*atom)).collect(),
+                );
             }
             Self::TitleModification {
                 prefix,
@@ -85,10 +102,10 @@ impl Layer {
             Self::IdMap(data) => current.ids.extend(data.clone()),
             Self::GroupMap(data) => current.groups.extend(data.clone()),
             Self::Plugin { data, .. } => current.migrate(data),
-            Self::SetCenter(select) => {
+            Self::SetCenter {select, center } => {
                 let target_atom = select.get_atom(&current);
                 if let Some(target_atom) = target_atom {
-                    let translation = Point3::origin() - target_atom.position;
+                    let translation = center - target_atom.position;
                     let translation =
                         Isometry3::translation(translation.x, translation.y, translation.z);
                     current
@@ -170,19 +187,19 @@ pub enum SelectOne {
 }
 
 impl SelectOne {
-    pub fn to_index(&self, layer: &MoleculeLayer) -> Option<usize> {
+    pub fn to_index(&self, layer: &SparseMolecule) -> Option<usize> {
         match self {
             Self::Index(index) => Some(*index),
             Self::IdName(id_name) => layer.ids.get(id_name).copied(),
         }
     }
 
-    pub fn get_atom(&self, layer: &MoleculeLayer) -> Option<Atom3D> {
+    pub fn get_atom(&self, layer: &SparseMolecule) -> Option<Atom3D> {
         self.to_index(layer)
             .and_then(|index| layer.atoms.read_atom(index))
     }
 
-    pub fn set_atom(&self, layer: &mut MoleculeLayer, atom: Option<Atom3D>) -> Option<()> {
+    pub fn set_atom(&self, layer: &mut SparseMolecule, atom: Option<Atom3D>) -> Option<()> {
         self.to_index(layer)
             .and_then(|index| Some(layer.atoms.set_atoms(index, vec![atom])))
     }
@@ -198,7 +215,7 @@ pub enum SelectMany {
 }
 
 impl SelectMany {
-    pub fn to_indexes(&self, layer: &MoleculeLayer) -> BTreeSet<usize> {
+    pub fn to_indexes(&self, layer: &SparseMolecule) -> BTreeSet<usize> {
         match self {
             Self::All => (0..layer.atoms.len()).collect(),
             Self::Element(number) => (0..layer.atoms.len())

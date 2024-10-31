@@ -1,29 +1,28 @@
 use serde::{Deserialize, Serialize};
-use std::collections::hash_set::IntoIter;
-use std::collections::HashSet;
-use std::hash::Hash;
+use std::collections::btree_set::IntoIter;
+use std::collections::BTreeSet;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
-pub struct NtoN<L: Eq + Hash, R: Eq + Hash>(HashSet<(L, R)>);
+pub struct NtoN<L: Eq + Ord, R: Eq + Ord>(BTreeSet<(L, R)>);
 
-impl<L: Sync + Send + Eq + Hash + Clone, R: Sync + Send + Eq + Hash + Clone> NtoN<L, R> {
+impl<L: Sync + Send + Eq + Ord + Clone, R: Sync + Send + Eq + Ord + Clone> NtoN<L, R> {
     pub fn new() -> Self {
-        Self(HashSet::new())
+        Self(BTreeSet::new())
     }
 
-    pub fn data(&self) -> &HashSet<(L, R)> {
+    pub fn data(&self) -> &BTreeSet<(L, R)> {
         &self.0
     }
 
-    fn data_mut(&mut self) -> &mut HashSet<(L, R)> {
+    fn data_mut(&mut self) -> &mut BTreeSet<(L, R)> {
         &mut self.0
     }
 
-    pub fn get_lefts(&self) -> HashSet<&L> {
+    pub fn get_lefts(&self) -> BTreeSet<&L> {
         self.data().iter().map(|(l, _)| l).collect()
     }
 
-    pub fn get_rights(&self) -> HashSet<&R> {
+    pub fn get_rights(&self) -> BTreeSet<&R> {
         self.data().iter().map(|(_, r)| r).collect()
     }
 
@@ -85,19 +84,19 @@ impl<L: Sync + Send + Eq + Hash + Clone, R: Sync + Send + Eq + Hash + Clone> Nto
     }
 }
 
-impl<L: Eq + Hash, R: Eq + Hash> From<HashSet<(L, R)>> for NtoN<L, R> {
-    fn from(value: HashSet<(L, R)>) -> Self {
-        Self(value)
+impl<L: Eq + Ord, R: Eq + Ord, T: Iterator<Item = (L, R)>> From<T> for NtoN<L, R> {
+    fn from(value: T) -> Self {
+        Self(value.collect())
     }
 }
 
-impl<L: Eq + Hash, R: Eq + Hash> Into<HashSet<(L, R)>> for NtoN<L, R> {
-    fn into(self) -> HashSet<(L, R)> {
+impl<L: Eq + Ord, R: Eq + Ord> Into<BTreeSet<(L, R)>> for NtoN<L, R> {
+    fn into(self) -> BTreeSet<(L, R)> {
         self.0
     }
 }
 
-impl<L: Eq + Hash, R: Eq + Hash> IntoIterator for NtoN<L, R> {
+impl<L: Eq + Ord, R: Eq + Ord> IntoIterator for NtoN<L, R> {
     type Item = (L, R);
     type IntoIter = IntoIter<(L, R)>;
     fn into_iter(self) -> Self::IntoIter {
@@ -105,8 +104,8 @@ impl<L: Eq + Hash, R: Eq + Hash> IntoIterator for NtoN<L, R> {
     }
 }
 
-impl<L: Eq + Hash, R: Eq + Hash> FromIterator<(L, R)> for NtoN<L, R> {
+impl<L: Eq + Ord, R: Eq + Ord> FromIterator<(L, R)> for NtoN<L, R> {
     fn from_iter<T: IntoIterator<Item = (L, R)>>(iter: T) -> Self {
-        Self::from(iter.into_iter().collect::<HashSet<_>>())
+        Self::from(iter.into_iter())
     }
 }

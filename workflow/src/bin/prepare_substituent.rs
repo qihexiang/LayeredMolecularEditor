@@ -2,7 +2,11 @@ use std::fs::File;
 
 use clap::Parser;
 use glob::glob;
-use lme::{molecule_layer::MoleculeLayer, substituent::Substituent};
+use lme::{
+    layer::{Layer, SelectOne},
+    sparse_molecule::SparseMolecule,
+};
+use nalgebra::Vector3;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
@@ -19,12 +23,6 @@ struct Arguments {
     /// - "./**/*.ml.json" matches all ml.json files can be found recursively in current working directory
     #[arg(short, long)]
     input: String,
-    /// Generate output MoleculeLayer file in JSON format.
-    #[arg(short, long)]
-    json: bool,
-    /// Generate output MoleculeLayer file in YAML format.
-    #[arg(short, long)]
-    yaml: bool,
 }
 
 fn main() {
@@ -32,18 +30,21 @@ fn main() {
     let matched_paths = glob(&arg.input).unwrap();
     for path in matched_paths {
         let mut path = path.unwrap();
-        println!("Handling file {:#?}", path);
+        println!("Handling file {:?}", path);
         let file = File::open(&path).unwrap();
-        let structure: MoleculeLayer = serde_yaml::from_reader(file).unwrap();
-        let substituent_name = structure.title.clone();
-        let substituent = Substituent::new(
-            lme::layer::SelectOne::Index(0),
-            lme::layer::SelectOne::Index(1),
-            structure,
-            substituent_name,
-        );
+        let structure: SparseMolecule = serde_yaml::from_reader(file).unwrap();
+        let set_center_layer = Layer::SetCenter {
+            select: SelectOne::Index(0),
+            center: Default::default(),
+        };
+        let align_layer = Layer::DirectionAlgin {
+            select: SelectOne::Index(1),
+            direction: Vector3::x(),
+        };
+        let structure = set_center_layer.filter(structure).unwrap();
+        let structure = align_layer.filter(structure).unwrap();
         path.set_extension("substituent.yaml");
         let file = File::create_new(path).unwrap();
-        serde_yaml::to_writer(file, &substituent).unwrap();
+        serde_yaml::to_writer(file, &structure).unwrap();
     }
 }

@@ -1,5 +1,7 @@
 use lazy_static::lazy_static;
-use std::collections::BTreeSet;
+use nalgebra::Point3;
+use serde::{Deserialize, Serialize};
+use std::{borrow::Borrow, collections::BTreeSet};
 
 lazy_static! {
     static ref ELEMENT_SET: BTreeSet<(usize, &'static str)> = BTreeSet::from([
@@ -124,14 +126,21 @@ lazy_static! {
     ]);
 }
 
-pub fn validated_element_num(input: &usize) -> bool {
-    ELEMENT_SET.iter().find(|(num, _)| num == input).is_some()
-}
-
-pub fn element_num_to_symbol(input: &usize) -> Option<&'static str> {
+pub fn validated_element_num<T: Borrow<usize>>(input: T) -> bool {
     ELEMENT_SET
         .iter()
-        .find_map(|(num, symbol)| if input == num { Some(*symbol) } else { None })
+        .find(|(num, _)| num == input.borrow())
+        .is_some()
+}
+
+pub fn element_num_to_symbol<T: Borrow<usize>>(input: T) -> Option<&'static str> {
+    ELEMENT_SET.iter().find_map(|(num, symbol)| {
+        if input.borrow() == num {
+            Some(*symbol)
+        } else {
+            None
+        }
+    })
 }
 
 pub fn element_symbol_to_num(input: &str) -> Option<usize> {
@@ -142,4 +151,10 @@ pub fn element_symbol_to_num(input: &str) -> Option<usize> {
             None
         }
     })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+pub struct Atom3D {
+    pub element: usize,
+    pub position: Point3<f64>,
 }

@@ -1,13 +1,14 @@
 use std::{cell::RefCell, collections::BTreeMap, ops::Range};
 
-use lme::{molecule_layer::MoleculeLayer, workspace::LayerStorage};
+use anyhow::{Context, Result};
+use lme::sparse_molecule::SparseMolecule;
 use serde::{Deserialize, Serialize};
 
-use crate::error::WorkflowError;
+use crate::workspace::LayerStorage;
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct WorkflowData {
-    pub base: MoleculeLayer,
+    pub base: SparseMolecule,
     pub layers: RefCell<LayerStorage>,
     pub stacks: Vec<Vec<usize>>,
     pub windows: BTreeMap<String, Range<usize>>,
@@ -32,19 +33,19 @@ impl Default for WorkflowData {
 }
 
 impl WorkflowData {
-    pub fn new(base: MoleculeLayer) -> Self {
+    pub fn new(base: SparseMolecule) -> Self {
         let mut workflow_data = Self::default();
         workflow_data.base = base;
         workflow_data
     }
 
-    pub fn current_window_stacks(&self) -> Result<Vec<&Vec<usize>>, WorkflowError> {
+    pub fn current_window_stacks(&self) -> Result<Vec<&Vec<usize>>> {
         self.current_window
             .clone()
             .map(|index| {
                 self.stacks
                     .get(index)
-                    .ok_or(WorkflowError::StackIdOutOfRange(index))
+                    .with_context(|| format!("Failed to load stack with index: {}", index))
             })
             .collect()
     }
