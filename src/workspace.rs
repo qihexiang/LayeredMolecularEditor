@@ -6,37 +6,6 @@ use crate::{
     molecule_layer::MoleculeLayer,
 };
 
-#[derive(Debug, Clone, Default)]
-pub struct StackCache {
-    cache: Option<MoleculeLayer>,
-    children: BTreeMap<usize, StackCache>,
-}
-
-impl StackCache {
-    pub fn read_cache(&self, path: &[usize]) -> Option<&MoleculeLayer> {
-        if let Some((head, nexts)) = path.split_first() {
-            let next_stack = self.children.get(head)?;
-            next_stack.read_cache(nexts)
-        } else {
-            self.cache.as_ref()
-        }
-    }
-
-    pub fn write_cache(&mut self, path: &[usize], stack_data: MoleculeLayer) {
-        if let Some((head, nexts)) = path.split_first() {
-            if let Some(next_stack) = self.children.get_mut(head) {
-                next_stack.write_cache(nexts, stack_data);
-            } else {
-                let mut next_stack = StackCache::default();
-                next_stack.write_cache(nexts, stack_data);
-                self.children.insert(*head, next_stack);
-            }
-        } else {
-            self.cache = Some(stack_data);
-        }
-    }
-}
-
 #[derive(Default, Deserialize, Serialize, Clone)]
 pub struct LayerStorage {
     base: MoleculeLayer,

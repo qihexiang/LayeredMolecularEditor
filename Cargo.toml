@@ -7,8 +7,6 @@ edition = "2021"
 serde = { version = "1.0", features = ["derive"] }
 nalgebra = { version = "*", features = ["serde-serialize"] }
 rayon = "1.10.0"
-tokio = { version = "1.40.0", features = ["full"] }
-axum = "0.7.5"
 clap = { version = "4.5.18", features = ["derive"] }
 glob = "0.3.1"
 serde_json = "1.0.128"
@@ -17,10 +15,6 @@ serde_yaml = "0.9.34"
 lazy_static = "1.5.0"
 cached = "0.53.1"
 zstd = "0.13.2"
-
-[[bin]]
-name = "lme_server"
-path = "src/server/main.rs"
 
 [[bin]]
 name = "workflow"
