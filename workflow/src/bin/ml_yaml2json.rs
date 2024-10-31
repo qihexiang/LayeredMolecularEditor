@@ -6,9 +6,7 @@ use lme::sparse_molecule::SparseMolecule;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
-/// Convert ml.json files to MoleculeLayer data in JSON(.ml.json) or YAML(.ml.yaml) format.
-///
-/// If neither -j/--json nor -y/--yaml is set, nothing will be output but check the ml.json files could be convert.
+/// Convert ml.json files to SparseMolecule data in JSON(.ml.json)。
 struct Arguments {
     /// Give the global file match pattern, for example:
     ///

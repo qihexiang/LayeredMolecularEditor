@@ -10,9 +10,8 @@ use nalgebra::Vector3;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
-/// Convert ml.json files to MoleculeLayer data in JSON(.ml.json) or YAML(.ml.yaml) format.
-///
-/// If neither -j/--json nor -y/--yaml is set, nothing will be output but check the ml.json files could be convert.
+/// Prepare SparseMolecule file as subsittuent. This program will put the first atom at (0, 0, 0)
+/// and rotate the molecule to make the second atom on (1, 0, 0) axis.
 struct Arguments {
     /// Give the global file match pattern, for example:
     ///

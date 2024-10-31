@@ -19,7 +19,7 @@ impl XYZContent {
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
-/// Convert XYZ files to MoleculeLayer data in JSON(.ml.json) or YAML(.ml.yaml) format.
+/// Convert XYZ files to SparseMolecule data in JSON(.ml.json) or YAML(.ml.yaml) format.
 ///
 /// If neither -j/--json nor -y/--yaml is set, nothing will be output but check the XYZ files could be convert.
 struct Arguments {
@@ -32,10 +32,10 @@ struct Arguments {
     /// - "./**/*.xyz" matches all xyz files can be found recursively in current working directory
     #[arg(short, long)]
     input: String,
-    /// Generate output MoleculeLayer file in JSON format.
+    /// Generate output SparseMolecule file in JSON format.
     #[arg(short, long)]
     json: bool,
-    /// Generate output MoleculeLayer file in YAML format.
+    /// Generate output SparseMolecule file in YAML format.
     #[arg(short, long)]
     yaml: bool,
 }

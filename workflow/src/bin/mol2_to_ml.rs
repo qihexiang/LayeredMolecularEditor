@@ -20,7 +20,7 @@ impl Mol2Content {
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]
-/// Convert mol2 files to MoleculeLayer data in JSON(.ml.json) or YAML(.ml.yaml) format.
+/// Convert mol2 files to SparseMolecule data in JSON(.ml.json) or YAML(.ml.yaml) format.
 ///
 /// If neither -j/--json nor -y/--yaml is set, nothing will be output but check the mol2 files could be convert.
 struct Arguments {
@@ -33,10 +33,10 @@ struct Arguments {
     /// - "./**/*.mol2" matches all mol2 files can be found recursively in current working directory
     #[arg(short, long)]
     input: String,
-    /// Generate output MoleculeLayer file in JSON format.
+    /// Generate output SparseMolecule file in JSON format.
     #[arg(short, long)]
     json: bool,
-    /// Generate output MoleculeLayer file in YAML format.
+    /// Generate output SparseMolecule file in YAML format.
     #[arg(short, long)]
     yaml: bool,
 }
