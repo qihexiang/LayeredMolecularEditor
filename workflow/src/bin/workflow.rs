@@ -4,15 +4,10 @@ use std::{
 };
 
 use anyhow::Context;
-use input_data::{WorkflowCheckPoint, WorkflowInput};
-use workflow_data::WorkflowData;
-
-mod input_data;
-mod io;
-mod runner;
-mod step;
-mod workflow_data;
-mod workspace;
+use workflow::{
+    input_data::{WorkflowCheckPoint, WorkflowInput},
+    workflow_data::WorkflowData,
+};
 
 fn main() {
     let input: WorkflowInput = serde_yaml::from_reader(
@@ -114,7 +109,8 @@ fn dump_checkpoint(checkpoint: &WorkflowCheckPoint) {
             9,
         )
         .with_context(|| "Unable to create zstd compress pipe")
-        .unwrap().auto_finish(),
+        .unwrap()
+        .auto_finish(),
         &checkpoint.workflow_data,
     )
     .with_context(|| "Unable to serialize lme_workflow.chk.data")

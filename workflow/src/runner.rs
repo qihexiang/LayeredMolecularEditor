@@ -17,7 +17,7 @@ use glob::glob;
 use rayon::prelude::*;
 
 use crate::io::BasicIOMolecule;
-use crate::workspace::{LayerStorage, LayerStorageError};
+use crate::workflow_data::{LayerStorage, LayerStorageError};
 
 #[derive(Debug, Deserialize)]
 pub enum Runner {

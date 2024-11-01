@@ -35,7 +35,7 @@ pub enum Layer {
     SetCenter {
         select: SelectOne,
         #[serde(default)]
-        center: Point3<f64>
+        center: Point3<f64>,
     },
     DirectionAlgin {
         select: SelectOne,
@@ -102,7 +102,7 @@ impl Layer {
             Self::IdMap(data) => current.ids.extend(data.clone()),
             Self::GroupMap(data) => current.groups.extend(data.clone()),
             Self::Plugin { data, .. } => current.migrate(data),
-            Self::SetCenter {select, center } => {
+            Self::SetCenter { select, center } => {
                 let target_atom = select.get_atom(&current);
                 if let Some(target_atom) = target_atom {
                     let translation = center - target_atom.position;
