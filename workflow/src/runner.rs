@@ -27,7 +27,7 @@ pub enum Runner {
         replace: SelectOne,
         file_pattern: String,
     },
-    Function {
+    Command {
         command: String,
         arguments: Vec<String>,
     },
@@ -70,7 +70,7 @@ impl Runner {
                         .collect(),
                 ))
             }
-            Self::Function { command, arguments } => {
+            Self::Command { command, arguments } => {
                 let input = current_window
                     .into_par_iter()
                     .map(|stack_path| cached_read_stack(base, &layer_storage, &stack_path))
@@ -188,7 +188,7 @@ impl Runner {
                             substituent.bonds.set_bond(a, b, bond);
                         }
                         substituent.title =
-                            vec![current_structure.title.clone(), substituent.title].join("_");
+                            format!("{}_{}", current_structure.title, substituent.title);
                         let mut updated_stack_path = stack_path.clone();
                         updated_stack_path.extend(align_layers.clone());
                         updated_stack_path
