@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::BTreeMap, ops::Range};
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use lme::{
     layer::{Layer, SelectOne},
     sparse_molecule::SparseMolecule,
@@ -11,22 +11,19 @@ use serde::{Deserialize, Serialize};
 pub struct WorkflowData {
     pub base: SparseMolecule,
     pub layers: RefCell<LayerStorage>,
-    pub stacks: Vec<Vec<usize>>,
-    pub windows: BTreeMap<String, Range<usize>>,
-    pub current_window: Range<usize>,
+    pub windows: BTreeMap<String, BTreeMap<String, Vec<usize>>>,
+    pub current_window: BTreeMap<String, Vec<usize>>,
 }
 
 impl Default for WorkflowData {
     fn default() -> Self {
         let base = Default::default();
         let layers = Default::default();
-        let stacks = vec![vec![]];
-        let current_window = 0..1;
-        let windows = BTreeMap::from([("base".to_string(), 0..1)]);
+        let current_window = BTreeMap::from([("".to_string(), vec![])]);
+        let windows = BTreeMap::from([("base".to_string(), current_window.clone())]);
         Self {
             base,
             layers,
-            stacks,
             windows,
             current_window,
         }
@@ -38,17 +35,6 @@ impl WorkflowData {
         let mut workflow_data = Self::default();
         workflow_data.base = base;
         workflow_data
-    }
-
-    pub fn current_window_stacks(&self) -> Result<Vec<&Vec<usize>>> {
-        self.current_window
-            .clone()
-            .map(|index| {
-                self.stacks
-                    .get(index)
-                    .with_context(|| format!("Failed to load stack with index: {}", index))
-            })
-            .collect()
     }
 }
 

@@ -44,7 +44,6 @@ fn main() {
                 bonds.set_bond(a, b, Some(bond));
             }
             SparseMolecule {
-                title: structure.title,
                 atoms,
                 bonds,
                 ids: HashMap::new(),

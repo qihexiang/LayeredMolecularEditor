@@ -242,7 +242,6 @@ impl<T: Clone + Iterator<Item = ((usize, usize), f64)>> From<T> for SparseBondMa
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct SparseMolecule {
-    pub title: String,
     pub atoms: SparseAtomList,
     pub bonds: SparseBondMatrix,
     pub ids: HashMap<String, usize>,
@@ -251,7 +250,6 @@ pub struct SparseMolecule {
 
 impl SparseMolecule {
     pub fn migrate(&mut self, other: &Self) {
-        self.title = other.title.to_string();
         self.atoms.migrate(&other.atoms);
         self.bonds.migrate(&other.bonds);
         self.ids.extend(other.ids.clone());
@@ -272,7 +270,6 @@ impl SparseMolecule {
                 .map(|(group_name, idx)| (group_name, idx + offset)),
         );
         Self {
-            title: self.title,
             atoms,
             bonds,
             ids,

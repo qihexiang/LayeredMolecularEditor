@@ -44,8 +44,8 @@ pub enum Runner {
 
 #[derive(Deserialize)]
 pub enum RunnerOutput {
-    Serial(Vec<Vec<usize>>),
-    Named(BTreeMap<String, Vec<Vec<usize>>>),
+    SingleWindow(BTreeMap<String, Vec<usize>>),
+    MultiWindow(BTreeMap<String, BTreeMap<String, Vec<usize>>>),
     None,
 }
 
@@ -53,19 +53,19 @@ impl Runner {
     pub fn execute<'a>(
         &self,
         base: &SparseMolecule,
-        current_window: Vec<&Vec<usize>>,
+        current_window: &BTreeMap<String, Vec<usize>>,
         layer_storage: &mut LayerStorage,
     ) -> Result<RunnerOutput> {
         match self {
             Self::AppendLayers(layers) => {
                 let layer_ids = layer_storage.create_layers(layers.clone());
-                Ok(RunnerOutput::Serial(
+                Ok(RunnerOutput::SingleWindow(
                     current_window
                         .into_iter()
-                        .map(|current| {
+                        .map(|(title, current)| {
                             let mut current = current.clone();
                             current.extend(layer_ids.clone());
-                            current
+                            (title.to_string(), current)
                         })
                         .collect(),
                 ))
@@ -73,8 +73,10 @@ impl Runner {
             Self::Command { command, arguments } => {
                 let input = current_window
                     .into_par_iter()
-                    .map(|stack_path| cached_read_stack(base, &layer_storage, &stack_path))
-                    .collect::<Result<Vec<_>, _>>()?;
+                    .map(|(title, stack_path)| {
+                        Ok((title, cached_read_stack(base, &layer_storage, &stack_path)?))
+                    })
+                    .collect::<Result<BTreeMap<_, _>>>()?;
                 let input = serde_json::to_string(&input)?;
                 let temp_directory =
                     tempdir().with_context(|| "Unable to create temp directory")?;
@@ -126,15 +128,26 @@ impl Runner {
                         let file = File::open(&path).with_context(|| {
                             format!("Unbale to open and deserialize matched file {:#?}", path)
                         })?;
-                        serde_yaml::from_reader(file).with_context(|| {
-                            format!("Unable to deserialize matched file {:#?}", path)
-                        })
+                        let substituent_name = path
+                            .file_stem()
+                            .with_context(|| {
+                                format!("Unable to get file name from path {:?}", path)
+                            })?
+                            .to_string_lossy()
+                            .to_string();
+                        Ok((
+                            substituent_name,
+                            serde_yaml::from_reader(file).with_context(|| {
+                                format!("Unable to deserialize matched file {:?}", path)
+                            })?,
+                        ))
                     })
-                    .collect::<Result<Vec<SparseMolecule>, _>>()?;
+                    .collect::<Result<BTreeMap<String, SparseMolecule>>>()?;
                 let current_structures = current_window
                     .into_iter()
-                    .map(|stack_path| {
+                    .map(|(title, stack_path)| {
                         Ok((
+                            title.to_string(),
                             stack_path.clone(),
                             cached_read_stack(base, &layer_storage, &stack_path)?,
                         ))
@@ -150,18 +163,18 @@ impl Runner {
                 };
                 let align_layers = layer_storage.create_layers([center_layer, align_layer]);
                 let mut result = BTreeMap::new();
-                for substituent in substituents {
+                for (substituent_name, substituent) in substituents {
                     let replace_atom =
                         SelectOne::Index(1)
                             .get_atom(&substituent)
                             .with_context(|| {
                                 format!(
                                 "Substitutuent must have at least 2 atoms, substituent title: {}",
-                                substituent.title
+                                substituent_name
                             )
                             })?;
-                    let mut updated_stacks = Vec::with_capacity(current_structures.len());
-                    for (stack_path, current_structure) in &current_structures {
+                    let mut updated_stacks = BTreeMap::new();
+                    for (current_title, stack_path, current_structure) in &current_structures {
                         let mut substituent = substituent.clone();
                         SelectOne::Index(0).set_atom(&mut substituent, None);
                         SelectOne::Index(1).set_atom(&mut substituent, None);
@@ -187,18 +200,34 @@ impl Runner {
                         for (a, b, bond) in updated_bonds {
                             substituent.bonds.set_bond(a, b, bond);
                         }
-                        substituent.title =
-                            format!("{}_{}", current_structure.title, substituent.title);
+                        let title = format!("{}_{}", current_title, substituent_name);
                         let mut updated_stack_path = stack_path.clone();
                         updated_stack_path.extend(align_layers.clone());
                         updated_stack_path
                             .extend(layer_storage.create_layers([Layer::Fill(substituent)]));
-                        updated_stacks.push(updated_stack_path);
+                        updated_stacks.insert(title, updated_stack_path);
                     }
-                    result.insert(substituent.title, updated_stacks);
+                    result.insert(substituent_name, updated_stacks);
                 }
-                Ok(RunnerOutput::Named(result))
+                Ok(RunnerOutput::MultiWindow(result))
             }
+            // Self::Calculation { prefix, suffix, input_format, input_from, output_to, command, args, envs, stdout, stderr, output_format } => {
+            //     let structures = current_window.into_par_iter().map(|stack_path| cached_read_stack(base, layer_storage, stack_path))
+            //         .collect::<Result<Vec<_>,_>>()?;
+            //     let results = structures.into_par_iter()
+            //         .map(|structure| {
+            //             let data = BasicIOMolecule::from(structure);
+            //             let input_data = [
+            //                 prefix.to_string(), data.output(&input_format)?, suffix.to_string()
+            //             ].join("\n");
+            //             let mut process = Command::new(command)
+            //                 .args(args)
+            //                 .envs(envs);
+
+            //             Ok(())
+            //         });
+            //     todo!()
+            // }
             Self::Output {
                 prefix,
                 suffix,
@@ -207,19 +236,19 @@ impl Runner {
             } => {
                 let outputs = current_window
                     .into_par_iter()
-                    .map(|stack_path| {
+                    .map(|(title, stack_path)| {
                         let data = cached_read_stack(base, &layer_storage, &stack_path)?;
                         let bonds = data.bonds.to_continous_list(&data.atoms);
-                        Ok(BasicIOMolecule::new(data.title, data.atoms.into(), bonds))
+                        Ok(BasicIOMolecule::new(
+                            title.to_string(),
+                            data.atoms.into(),
+                            bonds,
+                        ))
                     })
                     .collect::<Result<Vec<_>, LayerStorageError>>()?;
                 for output in outputs {
                     let mut path = target_directory.clone().join(&output.title);
-                    let content = match target_format.as_str() {
-                        "xyz" => output.output_to_xyz(),
-                        "mol2" => output.output_to_mol2(),
-                        format => Err(anyhow!("Unsupported output format: {}", format)),
-                    }?;
+                    let content = output.output(&target_format)?;
                     let content = [prefix.clone(), content, suffix.clone()]
                         .into_iter()
                         .filter(|part| part != "")

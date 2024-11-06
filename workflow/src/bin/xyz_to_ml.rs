@@ -41,7 +41,6 @@ fn main() {
             let bonds = SparseBondMatrix::new(structure.atoms.len());
             let atoms = SparseAtomList::from(structure.atoms);
             SparseMolecule {
-                title: structure.title,
                 atoms,
                 bonds,
                 ids: HashMap::new(),

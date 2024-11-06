@@ -11,14 +11,6 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Layer {
     Fill(SparseMolecule),
-    TitleModification {
-        #[serde(default)]
-        prefix: String,
-        #[serde(default)]
-        suffix: String,
-        #[serde(default)]
-        replace: Vec<(String, String)>,
-    },
     SetAtom {
         target: SelectOne,
         atom: Option<Atom3D>,
@@ -82,22 +74,6 @@ impl Layer {
                     current.atoms.len(),
                     atoms.iter().map(|atom| Some(*atom)).collect(),
                 );
-            }
-            Self::TitleModification {
-                prefix,
-                suffix,
-                replace,
-            } => {
-                let mut title = current.title.clone();
-                for (from, to) in replace {
-                    title = title.replace(from, to);
-                }
-                current.title = [prefix, &title, suffix]
-                    .into_iter()
-                    .filter(|item| item != &"")
-                    .map(|item| item.clone())
-                    .collect::<Vec<_>>()
-                    .join("_")
             }
             Self::IdMap(data) => current.ids.extend(data.clone()),
             Self::GroupMap(data) => current.groups.extend(data.clone()),

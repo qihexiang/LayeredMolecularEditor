@@ -20,6 +20,14 @@ impl BasicIOMolecule {
         }
     }
 
+    pub fn output(&self, format: &str) -> Result<String> {
+        match format {
+            "xyz" => self.output_to_xyz(),
+            "mol2" => self.output_to_mol2(),
+            format => Err(anyhow!("Unsupported format {format}"))
+        }
+    }
+
     pub fn input_from_xyz<R: Read>(mut r: R) -> Result<Self> {
         let mut content = String::new();
         r.read_to_string(&mut content)?;

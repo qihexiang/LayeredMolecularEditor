@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use anyhow::{Context, Result};
 use serde::Deserialize;
 
@@ -23,29 +25,23 @@ impl Step {
                 .with_context(|| format!("Failed to load window with name {}", from))?;
             workflow_data.current_window = window;
         }
-        let current_window = workflow_data.current_window_stacks()?;
         let generated_stacks = self.run.execute(
             &workflow_data.base,
-            current_window,
+            &workflow_data.current_window,
             &mut workflow_data.layers.borrow_mut(),
         )?;
-        let start = workflow_data.stacks.len();
         match generated_stacks {
-            RunnerOutput::Serial(generated_stacks) => {
-                workflow_data.stacks.extend(generated_stacks);
-                workflow_data.current_window = start..workflow_data.stacks.len();
+            RunnerOutput::SingleWindow(generated_stacks) => {
+                workflow_data.current_window = generated_stacks;
             }
-            RunnerOutput::Named(named_stacks) => {
+            RunnerOutput::MultiWindow(named_stacks) => {
                 let prefix = self.name.clone().unwrap_or(index.to_string());
-                for (suffix, genenrated_stacks) in named_stacks {
+                workflow_data.current_window = BTreeMap::new();
+                for (suffix, generated_stacks) in named_stacks {
+                    workflow_data.current_window.extend(generated_stacks.clone());
                     let name = [prefix.to_string(), suffix].join("_");
-                    let start = workflow_data.stacks.len();
-                    workflow_data.stacks.extend(genenrated_stacks);
-                    workflow_data
-                        .windows
-                        .insert(name, start..workflow_data.stacks.len());
+                    workflow_data.windows.insert(name, generated_stacks);
                 }
-                workflow_data.current_window = start..workflow_data.stacks.len();
             }
             RunnerOutput::None => {}
         };
