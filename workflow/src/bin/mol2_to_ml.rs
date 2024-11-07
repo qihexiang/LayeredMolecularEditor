@@ -37,7 +37,7 @@ fn main() {
         let content = {
             println!("Read file {:#?}", path);
             let file = File::open(&path).unwrap();
-            let structure = BasicIOMolecule::input_from_mol2(file).unwrap();
+            let structure = BasicIOMolecule::input("mol2", file).unwrap();
             let atoms = SparseAtomList::from(structure.atoms);
             let mut bonds = SparseBondMatrix::new(atoms.len());
             for (a, b, bond) in structure.bonds {

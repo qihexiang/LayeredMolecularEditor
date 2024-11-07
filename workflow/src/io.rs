@@ -24,11 +24,19 @@ impl BasicIOMolecule {
         match format {
             "xyz" => self.output_to_xyz(),
             "mol2" => self.output_to_mol2(),
-            format => Err(anyhow!("Unsupported format {format}"))
+            format => Err(anyhow!("Unsupported format {format}")),
         }
     }
 
-    pub fn input_from_xyz<R: Read>(mut r: R) -> Result<Self> {
+    pub fn input<R: Read>(format: &str, r: R) -> Result<Self> {
+        match format {
+            "xyz" => Self::input_from_xyz(r),
+            "mol2" => Self::input_from_mol2(r),
+            format => Err(anyhow!("Unsupported format {format}")),
+        }
+    }
+
+    fn input_from_xyz<R: Read>(mut r: R) -> Result<Self> {
         let mut content = String::new();
         r.read_to_string(&mut content)?;
         let lines = content.lines();
@@ -93,7 +101,7 @@ impl BasicIOMolecule {
         }
     }
 
-    pub fn input_from_mol2<R: Read>(mut r: R) -> Result<Self> {
+    fn input_from_mol2<R: Read>(mut r: R) -> Result<Self> {
         let mut content = String::new();
         r.read_to_string(&mut content)?;
         let lines = content.lines();
@@ -169,7 +177,7 @@ impl BasicIOMolecule {
         })
     }
 
-    pub fn output_to_xyz(&self) -> Result<String> {
+    fn output_to_xyz(&self) -> Result<String> {
         let title = self.title.clone();
         let count = self.atoms.len().to_string();
         let xyz = self
@@ -191,7 +199,7 @@ impl BasicIOMolecule {
         Ok([vec![count, title], xyz].concat().join("\n"))
     }
 
-    pub fn output_to_mol2(&self) -> Result<String> {
+    fn output_to_mol2(&self) -> Result<String> {
         let title = self.title.clone();
         let atom_count = self.atoms.len().to_string();
         let bond_count = self.bonds.len();

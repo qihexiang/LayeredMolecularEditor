@@ -93,7 +93,7 @@ impl SparseAtomList {
         &self.0
     }
 
-    pub fn update_from_continous_list(&self, list: &Vec<Atom3D>) -> Option<Self> {
+    pub fn update_from_continuous_list(&self, list: &Vec<Atom3D>) -> Option<Self> {
         let mut sparse_list = self.clone();
         let mut wait_to_update = list.iter();
         for item in sparse_list.0.iter_mut() {
@@ -107,7 +107,7 @@ impl SparseAtomList {
         Some(sparse_list)
     }
 
-    pub fn to_continous_index(&self, index: usize) -> Option<usize> {
+    pub fn to_continuous_index(&self, index: usize) -> Option<usize> {
         if self
             .read_atom(index)
             .map(|atom| validated_element_num(atom.element))
@@ -128,7 +128,7 @@ impl SparseAtomList {
         }
     }
 
-    pub fn from_countious_index(&self, index: usize) -> Option<usize> {
+    pub fn from_continuous_index(&self, index: usize) -> Option<usize> {
         self.0
             .iter()
             .enumerate()
@@ -205,23 +205,23 @@ impl SparseBondMatrix {
         }
     }
 
-    pub fn to_continous_list(&self, atom_list: &SparseAtomList) -> Vec<(usize, usize, f64)> {
-        let mut continous_list = Vec::with_capacity(atom_list.len().pow(2).div(2));
+    pub fn to_continuous_list(&self, atom_list: &SparseAtomList) -> Vec<(usize, usize, f64)> {
+        let mut continuous_list = Vec::with_capacity(atom_list.len().pow(2).div(2));
         for row_idx in 0..self.len() {
             for col_idx in row_idx..self.len() {
                 match (
-                    atom_list.to_continous_index(row_idx),
-                    atom_list.to_continous_index(col_idx),
+                    atom_list.to_continuous_index(row_idx),
+                    atom_list.to_continuous_index(col_idx),
                     self.read_bond(row_idx, col_idx),
                 ) {
                     (Some(row_idx), Some(col_idx), Some(bond)) => {
-                        continous_list.push((row_idx, col_idx, bond));
+                        continuous_list.push((row_idx, col_idx, bond));
                     }
                     _ => {}
                 }
             }
         }
-        continous_list
+        continuous_list
     }
 }
 

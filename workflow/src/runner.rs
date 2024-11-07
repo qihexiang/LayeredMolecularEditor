@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Context, Result};
 use cached::{proc_macro::cached, UnboundCache};
 use nalgebra::Vector3;
+use sedregex::find_and_replace;
 use std::fs::File;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::{collections::BTreeMap, io::Write};
 
 use lme::{
@@ -40,6 +41,48 @@ pub enum Runner {
         target_directory: PathBuf,
         target_format: String,
     },
+    Rename {
+        #[serde(default)]
+        prefix: Option<String>,
+        #[serde(default)]
+        suffix: Option<String>,
+        #[serde(default)]
+        replace: Option<(String, String)>,
+        #[serde(default)]
+        regex: Vec<String>,
+    },
+    Calculation {
+        working_directory: PathBuf,
+        pre_format: FormatOptions,
+        pre_filename: String,
+        #[serde(default)]
+        stdin: bool,
+        program: String,
+        #[serde(default)]
+        args: Vec<String>,
+        #[serde(default)]
+        envs: BTreeMap<String, String>,
+        post_format: String,
+        #[serde(default)]
+        post_filename: String,
+        #[serde(default)]
+        ignore_failed: bool,
+        #[serde(default)]
+        stdout: Option<String>,
+        #[serde(default)]
+        stderr: Option<String>
+    },
+}
+
+#[derive(Deserialize, Debug)]
+pub struct FormatOptions {
+    format: String,
+    #[serde(default)]
+    prefix: String,
+    #[serde(default)]
+    suffix: String,
+    #[serde(default)]
+    regex: Vec<String>,
 }
 
 #[derive(Deserialize)]
@@ -116,6 +159,117 @@ impl Runner {
                 })?;
                 Ok(output)
             }
+            Self::Calculation {
+                working_directory,
+                pre_format,
+                pre_filename,
+                stdin,
+                program,
+                args,
+                envs,
+                post_format,
+                post_filename,
+                ignore_failed,
+                stdout, stderr,
+            } => {
+                std::fs::create_dir_all(&working_directory).with_context(|| {
+                    format!("Unable to create directory at {:?}", working_directory)
+                })?;
+                let outputs = current_window.par_iter().map(|(title, stack_path)| {
+                    let working_directory = working_directory.join(title);
+                    std::fs::create_dir(&working_directory).with_context(|| {
+                        format!(
+                            "Unable to create directory at {:?} for structure titled {}",
+                            working_directory, title
+                        )
+                    })?;
+                    let structure = cached_read_stack(base, layer_storage, stack_path)?;
+                    let bonds = structure.bonds.clone().to_continuous_list(&structure.atoms);
+                    let atoms = structure.atoms.clone().into();
+                    let basic_molecule = BasicIOMolecule::new(title.to_string(), atoms, bonds);
+                    let pre_content = basic_molecule.output(&pre_format.format)?;
+                    let pre_content =
+                        find_and_replace(&pre_content, &pre_format.regex)?.to_string();
+                    let pre_content = [
+                        pre_format.prefix.to_string(),
+                        pre_content,
+                        pre_format.suffix.to_string(),
+                    ]
+                    .join("\n");
+                    let pre_path = working_directory.join(pre_filename);
+                    File::create(&pre_path)
+                        .with_context(|| {
+                            format!(
+                                "Unable to create pre-file for calculation at {:?}",
+                                pre_path
+                            )
+                        })?
+                        .write_all(pre_content.as_bytes())
+                        .with_context(|| {
+                            format!(
+                                "Unable to write to pre-file for calculation at {:?}",
+                                pre_path
+                            )
+                        })?;
+                    let mut command = Command::new(program);
+                    command.args(args).envs(envs);
+                    if *stdin {
+                        let stdin = Stdio::from(File::open(&pre_path).with_context(|| {
+                            format!("Unable to open created pre-file at {:?}", pre_content)
+                        })?);
+                        command.stdin(stdin);
+                    }
+                    if let Some(stdout) = stdout {
+                        let stdout_path = working_directory.join(stdout);
+                        let stdout_file = File::create(&stdout_path).with_context(|| format!("Unable to create stdout file at {:?} for structure titled {}", stdout_path, title))?;
+                        command.stdout(Stdio::from(stdout_file));
+                    } else {
+                        command.stdout(Stdio::null());
+                    }
+
+                    if let Some(stderr) = stderr {
+                        let stderr_path = working_directory.join(stderr);
+                        let stderr_file = File::create(&stderr_path).with_context(|| format!("Unable to create stdout file at {:?} for structure titled {}", stderr_path, title))?;
+                        command.stderr(Stdio::from(stderr_file));
+                    } else {
+                        command.stderr(Stdio::null());
+                    }
+
+                    let mut child = command.spawn().with_context(|| format!("Failed to start process for structure {}, process detail: {:#?}", title, command))?;
+                    let result = child.wait().with_context(|| format!("Unable to wait the process handling structure {}, process detail: {:#?}", title, child))?;
+                    
+                    if !result.success() {
+                        Err(anyhow!("Handling process for structure {} failed. Error code {:?}", title, result.code()))?;
+                    }
+
+                    let post_path = working_directory.join(post_filename);
+                    let post_file = File::open(&post_path).with_context(|| format!("Failed to open post-calculation file at {:?} for structure {}", post_path, title))?;
+                    let post_content = BasicIOMolecule::input(&post_format, post_file)?;
+                    let updated_atoms = structure.atoms.update_from_continuous_list(&post_content.atoms).with_context(|| format!("Failed to import atoms from calculated result for structure {}", title))?;
+                    let updated_bonds = post_content.bonds.into_iter()
+                        .map(|(a, b, bond)| Some((structure.atoms.to_continuous_index(a)?, structure.atoms.to_continuous_index(b)?, bond)))
+                        .collect::<Option<Vec<_>>>().with_context(|| format!("Failed to import bonds from calculated results for structure {}", title))?;
+                    let mut structure = structure;
+                    structure.atoms.migrate(&updated_atoms);
+                    for (a, b, bond) in updated_bonds {
+                        structure.bonds.set_bond(a, b, Some(bond));
+                    }
+                    Ok::<_, anyhow::Error>((title, stack_path, structure))
+                });
+                let results = if *ignore_failed {
+                    outputs.filter_map(|item| item.ok()).collect::<Vec<_>>()
+                } else {
+                    outputs.collect::<Result<Vec<_>>>()?
+                };
+                let mut window = BTreeMap::new();
+                for (title, stack_path, updated) in results {
+                    let updated_layer = layer_storage.create_layers([Layer::Fill(updated)]);
+                    let mut stack_path = stack_path.clone();
+                    stack_path.extend(updated_layer);
+                    window.insert(title.to_string(), stack_path);
+                }
+                Ok(RunnerOutput::SingleWindow(window))
+            }
             Self::Substituent {
                 center,
                 replace,
@@ -126,7 +280,7 @@ impl Runner {
                     .into_par_iter()
                     .map(|path| {
                         let file = File::open(&path).with_context(|| {
-                            format!("Unbale to open and deserialize matched file {:#?}", path)
+                            format!("Unable to open and deserialize matched file {:#?}", path)
                         })?;
                         let substituent_name = path
                             .file_stem()
@@ -169,9 +323,9 @@ impl Runner {
                             .get_atom(&substituent)
                             .with_context(|| {
                                 format!(
-                                "Substitutuent must have at least 2 atoms, substituent title: {}",
-                                substituent_name
-                            )
+                                    "Substituent must have at least 2 atoms, substituent title: {}",
+                                    substituent_name
+                                )
                             })?;
                     let mut updated_stacks = BTreeMap::new();
                     for (current_title, stack_path, current_structure) in &current_structures {
@@ -211,23 +365,30 @@ impl Runner {
                 }
                 Ok(RunnerOutput::MultiWindow(result))
             }
-            // Self::Calculation { prefix, suffix, input_format, input_from, output_to, command, args, envs, stdout, stderr, output_format } => {
-            //     let structures = current_window.into_par_iter().map(|stack_path| cached_read_stack(base, layer_storage, stack_path))
-            //         .collect::<Result<Vec<_>,_>>()?;
-            //     let results = structures.into_par_iter()
-            //         .map(|structure| {
-            //             let data = BasicIOMolecule::from(structure);
-            //             let input_data = [
-            //                 prefix.to_string(), data.output(&input_format)?, suffix.to_string()
-            //             ].join("\n");
-            //             let mut process = Command::new(command)
-            //                 .args(args)
-            //                 .envs(envs);
-
-            //             Ok(())
-            //         });
-            //     todo!()
-            // }
+            Self::Rename {
+                prefix,
+                suffix,
+                replace,
+                regex,
+            } => Ok(RunnerOutput::SingleWindow(
+                current_window
+                    .iter()
+                    .map(|(title, stack_path)| {
+                        let mut title = String::from(title);
+                        if let Some((from, to)) = replace {
+                            title = title.replace(from, to)
+                        }
+                        title = find_and_replace(&title, regex)?.to_string();
+                        if let Some(prefix) = prefix {
+                            title = [prefix.to_string(), title].join("_")
+                        }
+                        if let Some(suffix) = suffix {
+                            title = [title, suffix.to_string()].join("_")
+                        }
+                        Ok((title, stack_path.clone()))
+                    })
+                    .collect::<Result<BTreeMap<_, _>>>()?,
+            )),
             Self::Output {
                 prefix,
                 suffix,
@@ -238,7 +399,7 @@ impl Runner {
                     .into_par_iter()
                     .map(|(title, stack_path)| {
                         let data = cached_read_stack(base, &layer_storage, &stack_path)?;
-                        let bonds = data.bonds.to_continous_list(&data.atoms);
+                        let bonds = data.bonds.to_continuous_list(&data.atoms);
                         Ok(BasicIOMolecule::new(
                             title.to_string(),
                             data.atoms.into(),
