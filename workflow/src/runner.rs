@@ -247,7 +247,7 @@ impl Runner {
                     let post_content = BasicIOMolecule::input(&post_format, post_file)?;
                     let updated_atoms = structure.atoms.update_from_continuous_list(&post_content.atoms).with_context(|| format!("Failed to import atoms from calculated result for structure {}", title))?;
                     let updated_bonds = post_content.bonds.into_iter()
-                        .map(|(a, b, bond)| Some((structure.atoms.to_continuous_index(a)?, structure.atoms.to_continuous_index(b)?, bond)))
+                        .map(|(a, b, bond)| Some((structure.atoms.from_continuous_index(a)?, structure.atoms.from_continuous_index(b)?, bond)))
                         .collect::<Option<Vec<_>>>().with_context(|| format!("Failed to import bonds from calculated results for structure {}", title))?;
                     let mut structure = structure;
                     structure.atoms.migrate(&updated_atoms);
