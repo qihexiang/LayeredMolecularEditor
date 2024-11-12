@@ -40,6 +40,8 @@ pub enum Runner {
         #[serde(default)]
         target_directory: PathBuf,
         target_format: String,
+        #[serde(default)]
+        openbabel: bool
     },
     Rename {
         #[serde(default)]
@@ -177,7 +179,7 @@ impl Runner {
                 })?;
                 let outputs = current_window.par_iter().map(|(title, stack_path)| {
                     let working_directory = working_directory.join(title);
-                    std::fs::create_dir(&working_directory).with_context(|| {
+                    std::fs::create_dir_all(&working_directory).with_context(|| {
                         format!(
                             "Unable to create directory at {:?} for structure titled {}",
                             working_directory, title
@@ -212,7 +214,7 @@ impl Runner {
                             )
                         })?;
                     let mut command = Command::new(program);
-                    command.args(args).envs(envs);
+                    command.current_dir(&working_directory).args(args).envs(envs);
                     if *stdin {
                         let stdin = Stdio::from(File::open(&pre_path).with_context(|| {
                             format!("Unable to open created pre-file at {:?}", pre_content)
@@ -394,7 +396,9 @@ impl Runner {
                 suffix,
                 target_directory,
                 target_format,
+                openbabel
             } => {
+                std::fs::create_dir_all(target_directory).with_context(|| format!("Unable to create directory at {:?}", target_directory))?;
                 let outputs = current_window
                     .into_par_iter()
                     .map(|(title, stack_path)| {
@@ -407,20 +411,47 @@ impl Runner {
                         ))
                     })
                     .collect::<Result<Vec<_>, LayerStorageError>>()?;
-                for output in outputs {
-                    let mut path = target_directory.clone().join(&output.title);
-                    let content = output.output(&target_format)?;
-                    let content = [prefix.clone(), content, suffix.clone()]
-                        .into_iter()
-                        .filter(|part| part != "")
-                        .collect::<Vec<_>>()
-                        .join("\n");
-                    path.set_extension(target_format.as_str());
-                    let mut file = File::create_new(&path)
-                        .with_context(|| format!("Unable to create output file at {:?}", path))?;
-                    file.write_all(content.as_bytes())
-                        .with_context(|| format!("Unable to write to output file at {:?}", path))?;
-                }
+                outputs.into_par_iter()
+                    .map(|output| {
+                        let mut path = target_directory.clone().join(&output.title);
+                        let content = output.output(&target_format)?;
+                        let content = [prefix.clone(), content, suffix.clone()]
+                            .into_iter()
+                            .filter(|part| part != "")
+                            .collect::<Vec<_>>()
+                            .join("\n");
+                        path.set_extension(target_format.as_str());
+                        let mut file = File::create(&path)
+                            .with_context(|| format!("Unable to create output file at {:?}", path))?;
+                        file.write_all(content.as_bytes())
+                            .with_context(|| format!("Unable to write to output file at {:?}", path))?;
+                        if *openbabel {
+                            let path_for_arguments = path.to_string_lossy().to_string();
+                            let mut command =  Command::new("obabel");
+                            let child = command
+                                .args([format!("{}", path_for_arguments), format!("-O{}", path_for_arguments)])
+                                .stdout(Stdio::piped())
+                                .stderr(Stdio::piped());
+                            let result = child
+                                .spawn()
+                                .with_context(|| format!("Failed to start openbabel process for handling file at {:?}", path_for_arguments))?
+                                .wait_with_output()
+                                .with_context(|| format!("Failed to wait openbabel process for handling file at {:?}", path_for_arguments))?;
+                            if !result.status.success() {
+                                let mut error_log = path.clone();
+                                error_log.set_extension("err_log");
+                                let mut out_log = path.clone();
+                                out_log.set_extension("out_log");
+                                File::create(&error_log).with_context(|| format!("Failed to create error log file at {:?}", error_log))?
+                                    .write_all(&result.stderr).with_context(|| format!("Failed to write error log file at {:?}", error_log))?;
+                                File::create(&out_log).with_context(|| format!("Failed to create output log file at {:?}", out_log))?
+                                    .write_all(&result.stderr).with_context(|| format!("Failed to write output log file at {:?}", out_log))?;
+                                Err(anyhow!("Failed to handle file {:?} with openbabel, exit status {:?}, stderr and stdout logged.", path, result.status.code()))?;
+                            };
+                        };
+                        Ok(())
+                    })
+                    .collect::<Result<Vec<()>>>()?;
                 Ok(RunnerOutput::None)
             }
         }
