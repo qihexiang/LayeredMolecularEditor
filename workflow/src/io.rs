@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use anyhow::{anyhow, Context, Error, Ok, Result};
+use anyhow::{anyhow, Context, Error,  Result};
 use lme::chemistry::{element_num_to_symbol, element_symbol_to_num, Atom3D};
 use nalgebra::Point3;
 use rayon::prelude::*;
@@ -123,7 +123,7 @@ impl BasicIOMolecule {
             .skip(1)
             .take_while(|line| !line.starts_with("@<TRIPOS>"))
             .filter(|line| line != &"");
-        let title = molecule_block.next().unwrap();
+        let title = molecule_block.next().with_context(|| format!("Unable to read title line of the mol2 file"))?;
         let atoms = atom_block
             .map(|line| {
                 let mut line_items = line.split(" ").filter(|item| item != &"").skip(1);
@@ -142,13 +142,13 @@ impl BasicIOMolecule {
                     .next()
                     .with_context(|| format!("Unable to read z token of atom in line {line}"))?
                     .parse()?;
-                let element = element_symbol_to_num(element).unwrap();
+                let element = element_symbol_to_num(element).with_context(|| format!("Unable to convert {} to a element number", element))?;
                 Ok(Atom3D {
                     element,
                     position: Point3::new(x, y, z),
                 })
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect::<Result<Vec<_>>>()?;
         let bonds = bond_block
             .map(|line| {
                 let mut line_items = line.split(" ").filter(|item| item != &"").skip(1);
@@ -165,7 +165,12 @@ impl BasicIOMolecule {
                     .with_context(|| format!("Unable to read bond token of bond in line {line}"))?;
                 let bond = match bond {
                     "ar" | "Ar" | "AR" => 1.5,
-                    value => value.parse().unwrap(),
+                    "am" | "Am" | "AM" => 1.0,
+                    value => if let Ok(value) = value.parse() {
+                        value
+                    } else {
+                        panic!("{}", value)
+                    },
                 };
                 Ok((a - 1, b - 1, bond))
             })
