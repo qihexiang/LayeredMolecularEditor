@@ -15,6 +15,12 @@ use crate::chemistry::{validated_element_num, Atom3D};
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct SparseAtomList(Vec<Option<Atom3D>>);
 
+impl From<Vec<Option<Atom3D>>> for SparseAtomList {
+    fn from(value: Vec<Option<Atom3D>>) -> Self {
+        Self(value)
+    }
+}
+
 impl From<Vec<Atom3D>> for SparseAtomList {
     fn from(value: Vec<Atom3D>) -> Self {
         Self(value.into_iter().map(|atom| Some(atom)).collect())
@@ -283,42 +289,28 @@ impl SparseMolecule {
 }
 
 #[derive(Deserialize)]
-struct GhostSparseMolecule {
-    atoms: SparseAtomList,
-    bonds: SparseBondMatrix,
-    ids: HashMap<String, usize>,
-    groups: NtoN,
-}
-
-impl From<GhostSparseMolecule> for SparseMolecule {
-    fn from(value: GhostSparseMolecule) -> Self {
-        Self {
-            atoms: value.atoms, bonds: value.bonds, ids: value.ids, groups: value.groups
-        }
-    }
-}
-
-#[derive(Deserialize)]
 #[serde(untagged)]
 enum SparseMoleculeLoader {
     FilePath(PathBuf),
-    Data(GhostSparseMolecule),
+    Data {
+        atoms: SparseAtomList,
+        bonds: SparseBondMatrix,
+        ids: HashMap<String, usize>,
+        groups: NtoN,
+    },
 }
 
 impl TryFrom<SparseMoleculeLoader> for SparseMolecule {
     type Error = anyhow::Error;
     fn try_from(value: SparseMoleculeLoader) -> Result<Self, Self::Error> {
         match value {
-            SparseMoleculeLoader::Data(data) => {
-                println!("Direct data");
-                Ok(Self::from(data))
+            SparseMoleculeLoader::Data {atoms, bonds, ids, groups} => {
+                Ok(Self {atoms, bonds, ids, groups})
             },
             SparseMoleculeLoader::FilePath(path) => {
-                println!("Try loading from file");
                 let file = File::open(&path)
-                    .with_context(|| format!("Unable to load file from path {:?}", path))?;
-                let ghost_data: GhostSparseMolecule = serde_yaml::from_reader(file)?;
-                Ok(Self::from(ghost_data))
+                    .with_context(|| format!("Unable to load sparse molecule file from path {:?}", path))?;
+                Ok(serde_yaml::from_reader(file)?)
             }
         }
     }

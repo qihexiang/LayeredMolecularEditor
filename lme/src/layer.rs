@@ -1,11 +1,11 @@
-use std::collections::{BTreeSet, HashMap};
+use std::{collections::{BTreeSet, HashMap}, ops::RangeInclusive};
 
 use n_to_n::NtoN;
 use nalgebra::{Isometry3, Point3, Translation3, Vector3};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    chemistry::Atom3D, sparse_molecule::SparseMolecule, utils::geometric::axis_angle_for_b2a,
+    chemistry::Atom3D, sparse_molecule::{SparseAtomList, SparseMolecule}, utils::geometric::axis_angle_for_b2a,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -141,7 +141,7 @@ impl Layer {
             }
             Self::RemoveAtoms(select) => {
                 let selected = select.to_indexes(&current);
-                let atoms = (0..current.atoms.len())
+                let atoms = SparseAtomList::from((0..current.atoms.len())
                     .map(|index| {
                         if selected.contains(&index) {
                             Some(Atom3D::default())
@@ -149,8 +149,9 @@ impl Layer {
                             None
                         }
                     })
-                    .collect();
-                current.atoms.set_atoms(0, atoms);
+                    .collect::<Vec<_>>()
+                );
+                current.atoms.migrate(&atoms);
             }
         }
         Ok(current)
@@ -189,6 +190,7 @@ pub enum SelectMany {
     All,
     Element(usize),
     Indexes(BTreeSet<usize>),
+    Range(RangeInclusive<usize>),
     GroupName(String),
 }
 
@@ -212,6 +214,7 @@ impl SelectMany {
                 .copied()
                 .collect(),
             Self::Indexes(indexes) => indexes.clone(),
+            Self::Range(range) => range.clone().collect()
         }
     }
 }
