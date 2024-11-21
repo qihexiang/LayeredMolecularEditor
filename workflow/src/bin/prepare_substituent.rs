@@ -28,7 +28,7 @@ fn main() {
     let arg = Arguments::parse();
     let matched_paths = glob(&arg.input).unwrap();
     for path in matched_paths {
-        let mut path = path.unwrap();
+        let path = path.unwrap();
         println!("Handling file {:?}", path);
         let file = File::open(&path).unwrap();
         let structure: SparseMolecule = serde_yaml::from_reader(file).unwrap();
@@ -42,8 +42,7 @@ fn main() {
         };
         let structure = set_center_layer.filter(structure).unwrap();
         let structure = align_layer.filter(structure).unwrap();
-        path.set_extension("substituent.yaml");
-        let file = File::create_new(path).unwrap();
+        let file = File::create(path).unwrap();
         serde_yaml::to_writer(file, &structure).unwrap();
     }
 }

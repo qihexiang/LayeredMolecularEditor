@@ -53,14 +53,14 @@ fn main() {
 
         if arg.json {
             let mut ml_path = path.clone();
-            ml_path.set_extension("ml.json");
+            ml_path.set_extension("json");
             let ml_file = File::create(ml_path).unwrap();
             serde_json::to_writer(ml_file, &content).unwrap();
         }
 
         if arg.yaml {
             let mut ml_path = path.clone();
-            ml_path.set_extension("ml.yaml");
+            ml_path.set_extension("yaml");
             let ml_file = File::create(ml_path).unwrap();
             serde_yaml::to_writer(ml_file, &content).unwrap();
         }
