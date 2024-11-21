@@ -1,8 +1,11 @@
 use std::{
     collections::{BTreeSet, HashMap},
+    fs::File,
     ops::Div,
+    path::PathBuf,
 };
 
+use anyhow::Context;
 use n_to_n::NtoN;
 use nalgebra::Isometry3;
 use serde::{Deserialize, Serialize};
@@ -241,11 +244,12 @@ impl<T: Clone + Iterator<Item = ((usize, usize), f64)>> From<T> for SparseBondMa
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[serde(try_from="SparseMoleculeLoader")]
 pub struct SparseMolecule {
     pub atoms: SparseAtomList,
     pub bonds: SparseBondMatrix,
     pub ids: HashMap<String, usize>,
-    pub groups: NtoN<String, usize>,
+    pub groups: NtoN,
 }
 
 impl SparseMolecule {
@@ -264,7 +268,7 @@ impl SparseMolecule {
             .into_iter()
             .map(|(id, idx)| (id, idx + offset))
             .collect();
-        let groups: NtoN<String, usize> = NtoN::from(
+        let groups = NtoN::from(
             self.groups
                 .into_iter()
                 .map(|(group_name, idx)| (group_name, idx + offset)),
@@ -274,6 +278,48 @@ impl SparseMolecule {
             bonds,
             ids,
             groups,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct GhostSparseMolecule {
+    atoms: SparseAtomList,
+    bonds: SparseBondMatrix,
+    ids: HashMap<String, usize>,
+    groups: NtoN,
+}
+
+impl From<GhostSparseMolecule> for SparseMolecule {
+    fn from(value: GhostSparseMolecule) -> Self {
+        Self {
+            atoms: value.atoms, bonds: value.bonds, ids: value.ids, groups: value.groups
+        }
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum SparseMoleculeLoader {
+    FilePath(PathBuf),
+    Data(GhostSparseMolecule),
+}
+
+impl TryFrom<SparseMoleculeLoader> for SparseMolecule {
+    type Error = anyhow::Error;
+    fn try_from(value: SparseMoleculeLoader) -> Result<Self, Self::Error> {
+        match value {
+            SparseMoleculeLoader::Data(data) => {
+                println!("Direct data");
+                Ok(Self::from(data))
+            },
+            SparseMoleculeLoader::FilePath(path) => {
+                println!("Try loading from file");
+                let file = File::open(&path)
+                    .with_context(|| format!("Unable to load file from path {:?}", path))?;
+                let ghost_data: GhostSparseMolecule = serde_yaml::from_reader(file)?;
+                Ok(Self::from(ghost_data))
+            }
         }
     }
 }
