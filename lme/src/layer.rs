@@ -16,14 +16,14 @@ pub enum Layer {
         atom: Option<Atom3D>,
     },
     AppendAtoms(Vec<Atom3D>),
-    SetBond(Vec<(usize, usize, f64)>),
+    SetBond(Vec<(SelectOne, SelectOne, f64)>),
     Plugin {
         plugin_name: String,
         arguments: Vec<String>,
         data: SparseMolecule,
     },
     IdMap(HashMap<String, usize>),
-    GroupMap(NtoN<String, usize>),
+    GroupMap(NtoN),
     SetCenter {
         select: SelectOne,
         #[serde(default)]
@@ -63,7 +63,9 @@ impl Layer {
             Self::Fill(data) => current.migrate(data),
             Self::SetBond(bonds) => {
                 for (a, b, bond) in bonds {
-                    current.bonds.set_bond(*a, *b, Some(*bond));
+                    let a= a.to_index(&current).ok_or(a.clone())?;
+                    let b = b.to_index(&current).ok_or(b.clone())?;
+                    current.bonds.set_bond(a, b, Some(*bond));
                 }
             }
             Self::SetAtom { target, atom } => {
