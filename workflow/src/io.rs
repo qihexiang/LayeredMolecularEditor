@@ -127,9 +127,8 @@ impl BasicIOMolecule {
         let atoms = atom_block
             .map(|line| {
                 let mut line_items = line.split(" ").filter(|item| item != &"").skip(1);
-                let element = line_items.next().with_context(|| {
-                    format!("Unable to read element token of atom in line {line}")
-                })?;
+                // Do not read atom name from mol2, because different programs use different for this.
+                let _ = line_items.next().with_context(|| format!("Unable to read element token of atom in line {line}"))?;
                 let x = line_items
                     .next()
                     .with_context(|| format!("Unable to read x token of atom in line {line}"))?
@@ -142,6 +141,8 @@ impl BasicIOMolecule {
                     .next()
                     .with_context(|| format!("Unable to read z token of atom in line {line}"))?
                     .parse()?;
+                let element = line_items.next().with_context(|| format!("Unable to read element token {line}"))?;
+                let element = element.split(".").next().with_context(|| format!("Unable to read element token {line}"))?;
                 let element = element_symbol_to_num(element).with_context(|| format!("Unable to convert {} to a element number", element))?;
                 Ok(Atom3D {
                     element,
