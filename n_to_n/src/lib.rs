@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::btree_set::IntoIter;
 use std::collections::{BTreeMap, BTreeSet};
-use std::ops::Range;
+use std::ops::RangeInclusive;
 
 type NtoNData = BTreeSet<(String, usize)>;
 
@@ -114,11 +114,11 @@ impl FromIterator<(String, usize)> for NtoN {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 #[serde(untagged)]
 enum IndexCollect {
     Collect(BTreeSet<usize>),
-    Range(Range<usize>),
+    Range(RangeInclusive<usize>),
 }
 
 impl IndexCollect {
@@ -130,19 +130,23 @@ impl IndexCollect {
     }
 }
 
-#[derive(Deserialize)]
-pub struct FriendlyNtoN(BTreeMap<String, IndexCollect>);
+#[derive(Deserialize, Serialize)]
+#[serde(untagged)]
+enum FriendlyNtoN {
+    UnFriendly(BTreeSet<(String, usize)>),
+    Friendly(BTreeMap<String, IndexCollect>),
+}
 
 impl From<FriendlyNtoN> for NtoN {
     fn from(value: FriendlyNtoN) -> Self {
-        Self::from_iter(
-            value
-                .0
-                .into_iter()
-                .map(|(k, v)| {
-                    v.collect().into_iter().map(move |v| ((&k).to_string(), v))
-                })
-                .flatten()
-        )
+        Self::from_iter(match value {
+            FriendlyNtoN::Friendly(value) => Self::from_iter(
+                value
+                    .into_iter()
+                    .map(|(k, v)| v.collect().into_iter().map(move |v| ((&k).to_string(), v)))
+                    .flatten(),
+            ),
+            FriendlyNtoN::UnFriendly(value) => Self(value),
+        })
     }
 }
