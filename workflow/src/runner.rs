@@ -401,20 +401,17 @@ impl Runner {
                 openbabel
             } => {
                 std::fs::create_dir_all(target_directory).with_context(|| format!("Unable to create directory at {:?}", target_directory))?;
-                let outputs = current_window
+                current_window
                     .into_par_iter()
                     .map(|(title, stack_path)| {
                         let data = cached_read_stack(base, &layer_storage, &stack_path)?;
                         let bonds = data.bonds.to_continuous_list(&data.atoms);
-                        Ok(BasicIOMolecule::new(
+                        let output = BasicIOMolecule::new(
                             title.to_string(),
                             data.atoms.into(),
                             bonds,
-                        ))
-                    })
-                    .collect::<Result<Vec<_>, LayerStorageError>>()?;
-                outputs.into_par_iter()
-                    .map(|output| {
+                        );
+                    
                         let mut path = target_directory.clone().join(&output.title);
                         let content = output.output(&target_format)?;
                         let content = [prefix.clone(), content, suffix.clone()]
