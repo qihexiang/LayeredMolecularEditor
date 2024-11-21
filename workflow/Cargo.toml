@@ -17,4 +17,3 @@ nalgebra = "0.33.2"
 clap = { version = "4.5.18", features = ["derive"] }
 zstd = "0.13.2"
 n_to_n ={ path="../n_to_n" }
-sedregex = "0.2.5"

@@ -1,7 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use cached::{proc_macro::cached, UnboundCache};
 use nalgebra::Vector3;
-use sedregex::find_and_replace;
 use std::fs::File;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -18,6 +17,8 @@ use glob::glob;
 use rayon::prelude::*;
 
 use crate::io::BasicIOMolecule;
+use crate::obabel::obabel;
+use crate::regexsed::regex_sed;
 use crate::workflow_data::{LayerStorage, LayerStorageError};
 
 #[derive(Debug, Deserialize)]
@@ -83,6 +84,8 @@ pub struct FormatOptions {
     prefix: String,
     #[serde(default)]
     suffix: String,
+    #[serde(default)]
+    openbabel: bool,
     #[serde(default)]
     regex: Vec<String>,
 }
@@ -190,8 +193,12 @@ impl Runner {
                     let atoms = structure.atoms.clone().into();
                     let basic_molecule = BasicIOMolecule::new(title.to_string(), atoms, bonds);
                     let pre_content = basic_molecule.output(&pre_format.format)?;
-                    let pre_content =
-                        find_and_replace(&pre_content, &pre_format.regex)?.to_string();
+                    let pre_content = if pre_format.openbabel {
+                        obabel(&pre_content, &pre_format.format, &pre_format.format)?
+                    } else {
+                        pre_content
+                    };
+                    let pre_content = regex_sed(&pre_content, &pre_format.regex.join("; "))?;
                     let pre_content = [
                         pre_format.prefix.to_string(),
                         pre_content,
@@ -380,7 +387,7 @@ impl Runner {
                         if let Some((from, to)) = replace {
                             title = title.replace(from, to)
                         }
-                        title = find_and_replace(&title, regex)?.to_string();
+                        title = regex_sed(&title, &regex.join("; "))?;
                         if let Some(prefix) = prefix {
                             title = [prefix.to_string(), title].join("_")
                         }
