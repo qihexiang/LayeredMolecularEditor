@@ -25,8 +25,7 @@ use crate::workflow_data::{LayerStorage, LayerStorageError};
 pub enum Runner {
     AppendLayers(Vec<Layer>),
     Substituent {
-        center: SelectOne,
-        replace: SelectOne,
+        address: Vec<(SelectOne, SelectOne)>,
         file_pattern: String,
     },
     Command {
@@ -75,6 +74,7 @@ pub enum Runner {
         #[serde(default)]
         stderr: Option<String>
     },
+    CheckPoint
 }
 
 #[derive(Deserialize, Debug)]
@@ -105,6 +105,9 @@ impl Runner {
         layer_storage: &mut LayerStorage,
     ) -> Result<RunnerOutput> {
         match self {
+            Self::CheckPoint => {
+                Ok(RunnerOutput::None)
+            }
             Self::AppendLayers(layers) => {
                 let layer_ids = layer_storage.create_layers(layers.clone());
                 Ok(RunnerOutput::SingleWindow(
@@ -280,8 +283,7 @@ impl Runner {
                 Ok(RunnerOutput::SingleWindow(window))
             }
             Self::Substituent {
-                center,
-                replace,
+                address,
                 file_pattern,
             } => {
                 let matched_files = glob(&file_pattern)?.collect::<Result<Vec<_>, _>>()?;
@@ -306,25 +308,7 @@ impl Runner {
                         ))
                     })
                     .collect::<Result<BTreeMap<String, SparseMolecule>>>()?;
-                let current_structures = current_window
-                    .into_iter()
-                    .map(|(title, stack_path)| {
-                        Ok((
-                            title.to_string(),
-                            stack_path.clone(),
-                            cached_read_stack(base, &layer_storage, &stack_path)?,
-                        ))
-                    })
-                    .collect::<Result<Vec<_>, LayerStorageError>>()?;
-                let center_layer = Layer::SetCenter {
-                    select: center.clone(),
-                    center: Default::default(),
-                };
-                let align_layer = Layer::DirectionAlgin {
-                    select: replace.clone(),
-                    direction: Vector3::x(),
-                };
-                let align_layers = layer_storage.create_layers([center_layer, align_layer]);
+
                 let mut result = BTreeMap::new();
                 for (substituent_name, substituent) in substituents {
                     let replace_atom =
@@ -337,38 +321,49 @@ impl Runner {
                                 )
                             })?;
                     let mut updated_stacks = BTreeMap::new();
-                    for (current_title, stack_path, current_structure) in &current_structures {
-                        let mut substituent = substituent.clone();
-                        SelectOne::Index(0).set_atom(&mut substituent, None);
-                        SelectOne::Index(1).set_atom(&mut substituent, None);
-                        let offset = current_structure.atoms.len();
-                        let mut substituent = substituent.offset(offset);
-                        substituent.ids = current_structure.ids.clone();
-                        replace
-                            .set_atom(&mut substituent, Some(replace_atom))
-                            .with_context(|| {
-                                format!(
-                                    "The replace selector {:?} in {:#?} is not validated",
-                                    replace, substituent
-                                )
-                            })?;
-                        let replaced_index = replace.to_index(&substituent).unwrap();
-                        let updated_bonds = substituent
-                            .bonds
-                            .get_neighbors(offset + 1)
-                            .unwrap()
-                            .enumerate()
-                            .map(|(index, bond)| (replaced_index, index, bond.clone()))
-                            .collect::<Vec<_>>();
-                        for (a, b, bond) in updated_bonds {
-                            substituent.bonds.set_bond(a, b, bond);
-                        }
+                    for (current_title, stack_path) in current_window {
                         let title = format!("{}_{}", current_title, substituent_name);
-                        let mut updated_stack_path = stack_path.clone();
-                        updated_stack_path.extend(align_layers.clone());
-                        updated_stack_path
-                            .extend(layer_storage.create_layers([Layer::Fill(substituent)]));
-                        updated_stacks.insert(title, updated_stack_path);
+                        let mut stack_path = stack_path.clone();
+                        for (center, replace) in address {
+                            let current_structure = cached_read_stack(base, layer_storage, &stack_path)?;
+                            let center_layer = Layer::SetCenter {
+                                select: center.clone(),
+                                center: Default::default(),
+                            };
+                            let align_layer = Layer::DirectionAlgin {
+                                select: replace.clone(),
+                                direction: Vector3::x(),
+                            };
+                            let align_layers = layer_storage.create_layers([center_layer, align_layer]);
+                            let mut substituent = substituent.clone();
+                            SelectOne::Index(0).set_atom(&mut substituent, None);
+                            SelectOne::Index(1).set_atom(&mut substituent, None);
+                            let offset = current_structure.atoms.len();
+                            let mut substituent = substituent.offset(offset);
+                            substituent.ids = current_structure.ids.clone();
+                            replace
+                                .set_atom(&mut substituent, Some(replace_atom))
+                                .with_context(|| {
+                                    format!(
+                                        "The replace selector {:?} in {:#?} is not validated",
+                                        replace, substituent
+                                    )
+                                })?;
+                            let replaced_index = replace.to_index(&substituent).unwrap();
+                            let updated_bonds = substituent
+                                .bonds
+                                .get_neighbors(offset + 1)
+                                .unwrap()
+                                .enumerate()
+                                .map(|(index, bond)| (replaced_index, index, bond.clone()))
+                                .collect::<Vec<_>>();
+                            for (a, b, bond) in updated_bonds {
+                                substituent.bonds.set_bond(a, b, bond);
+                            }
+                            stack_path.extend(align_layers);
+                            stack_path.extend(layer_storage.create_layers([Layer::Fill(substituent)]));
+                        }
+                        updated_stacks.insert(title, stack_path);
                     }
                     result.insert(substituent_name, updated_stacks);
                 }
