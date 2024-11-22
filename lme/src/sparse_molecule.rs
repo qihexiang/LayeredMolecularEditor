@@ -224,7 +224,9 @@ impl SparseBondMatrix {
                     self.read_bond(row_idx, col_idx),
                 ) {
                     (Some(row_idx), Some(col_idx), Some(bond)) => {
-                        continuous_list.push((row_idx, col_idx, bond));
+                        if bond != 0. {
+                            continuous_list.push((row_idx, col_idx, bond));
+                        }
                     }
                     _ => {}
                 }
