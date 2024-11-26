@@ -3,7 +3,7 @@ use std::{
     process::{Command, Stdio},
 };
 
-use anyhow::{Ok, Result};
+use anyhow::{Context, Ok, Result};
 
 pub fn obabel(input: &str, input_format: &str, output_format: &str) -> Result<String> {
     let mut command = Command::new("obabel")
@@ -14,7 +14,8 @@ pub fn obabel(input: &str, input_format: &str, output_format: &str) -> Result<St
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::null())
-        .spawn()?;
+        .spawn()
+        .with_context(|| "Failed to start openbabel")?;
     command.stdin.take().unwrap().write_all(input.as_bytes())?;
     let output = command.wait_with_output()?;
     Ok(String::from_utf8(output.stdout)?)
