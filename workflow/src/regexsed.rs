@@ -1,4 +1,7 @@
-use std::{io::Write, process::{Command, Stdio}};
+use std::{
+    io::Write,
+    process::{Command, Stdio},
+};
 
 use anyhow::{Ok, Result};
 

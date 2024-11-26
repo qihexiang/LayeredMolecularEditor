@@ -6,4 +6,4 @@ edition = "2021"
 [dependencies]
 
 [workspace]
-members = ["lme", "n_to_n", "workflow"]
+members = ["lme", "workflow"]

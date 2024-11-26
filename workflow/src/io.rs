@@ -1,6 +1,6 @@
 use std::io::Read;
 
-use anyhow::{anyhow, Context, Error,  Result};
+use anyhow::{anyhow, Context, Error, Result};
 use lme::chemistry::{element_num_to_symbol, element_symbol_to_num, Atom3D};
 use nalgebra::Point3;
 use rayon::prelude::*;
@@ -123,12 +123,16 @@ impl BasicIOMolecule {
             .skip(1)
             .take_while(|line| !line.starts_with("@<TRIPOS>"))
             .filter(|line| line != &"");
-        let title = molecule_block.next().with_context(|| format!("Unable to read title line of the mol2 file"))?;
+        let title = molecule_block
+            .next()
+            .with_context(|| format!("Unable to read title line of the mol2 file"))?;
         let atoms = atom_block
             .map(|line| {
                 let mut line_items = line.split(" ").filter(|item| item != &"").skip(1);
                 // Do not read atom name from mol2, because different programs use different for this.
-                let _ = line_items.next().with_context(|| format!("Unable to read element token of atom in line {line}"))?;
+                let _ = line_items.next().with_context(|| {
+                    format!("Unable to read element token of atom in line {line}")
+                })?;
                 let x = line_items
                     .next()
                     .with_context(|| format!("Unable to read x token of atom in line {line}"))?
@@ -141,9 +145,16 @@ impl BasicIOMolecule {
                     .next()
                     .with_context(|| format!("Unable to read z token of atom in line {line}"))?
                     .parse()?;
-                let element = line_items.next().with_context(|| format!("Unable to read element token {line}"))?;
-                let element = element.split(".").next().with_context(|| format!("Unable to read element token {line}"))?;
-                let element = element_symbol_to_num(element).with_context(|| format!("Unable to convert {} to a element number", element))?;
+                let element = line_items
+                    .next()
+                    .with_context(|| format!("Unable to read element token {line}"))?;
+                let element = element
+                    .split(".")
+                    .next()
+                    .with_context(|| format!("Unable to read element token {line}"))?;
+                let element = element_symbol_to_num(element).with_context(|| {
+                    format!("Unable to convert {} to a element number", element)
+                })?;
                 Ok(Atom3D {
                     element,
                     position: Point3::new(x, y, z),
@@ -167,11 +178,13 @@ impl BasicIOMolecule {
                 let bond = match bond {
                     "ar" | "Ar" | "AR" => 1.5,
                     "am" | "Am" | "AM" => 1.0,
-                    value => if let Ok(value) = value.parse() {
-                        value
-                    } else {
-                        panic!("{}", value)
-                    },
+                    value => {
+                        if let Ok(value) = value.parse() {
+                            value
+                        } else {
+                            panic!("{}", value)
+                        }
+                    }
                 };
                 Ok((a - 1, b - 1, bond))
             })

@@ -41,7 +41,7 @@ pub enum Runner {
         target_directory: PathBuf,
         target_format: String,
         #[serde(default)]
-        openbabel: bool
+        openbabel: bool,
     },
     Rename {
         #[serde(default)]
@@ -72,9 +72,9 @@ pub enum Runner {
         #[serde(default)]
         stdout: Option<String>,
         #[serde(default)]
-        stderr: Option<String>
+        stderr: Option<String>,
     },
-    CheckPoint
+    CheckPoint,
 }
 
 #[derive(Deserialize, Debug)]
@@ -105,9 +105,7 @@ impl Runner {
         layer_storage: &mut LayerStorage,
     ) -> Result<RunnerOutput> {
         match self {
-            Self::CheckPoint => {
-                Ok(RunnerOutput::None)
-            }
+            Self::CheckPoint => Ok(RunnerOutput::None),
             Self::AppendLayers(layers) => {
                 let layer_ids = layer_storage.create_layers(layers.clone());
                 Ok(RunnerOutput::SingleWindow(
@@ -178,7 +176,8 @@ impl Runner {
                 post_format,
                 post_filename,
                 ignore_failed,
-                stdout, stderr,
+                stdout,
+                stderr,
             } => {
                 std::fs::create_dir_all(&working_directory).with_context(|| {
                     format!("Unable to create directory at {:?}", working_directory)
@@ -249,7 +248,7 @@ impl Runner {
 
                     let mut child = command.spawn().with_context(|| format!("Failed to start process for structure {}, process detail: {:#?}", title, command))?;
                     let result = child.wait().with_context(|| format!("Unable to wait the process handling structure {}, process detail: {:#?}", title, child))?;
-                    
+
                     if !result.success() {
                         Err(anyhow!("Handling process for structure {} failed. Error code {:?}", title, result.code()))?;
                     }
@@ -262,7 +261,7 @@ impl Runner {
                         .map(|(a, b, bond)| Some((structure.atoms.from_continuous_index(a)?, structure.atoms.from_continuous_index(b)?, bond)))
                         .collect::<Option<Vec<_>>>().with_context(|| format!("Failed to import bonds from calculated results for structure {}", title))?;
                     let mut structure = structure;
-                    structure.atoms.migrate(&updated_atoms);
+                    structure.atoms.migrate(updated_atoms);
                     for (a, b, bond) in updated_bonds {
                         structure.bonds.set_bond(a, b, Some(bond));
                     }
@@ -325,7 +324,8 @@ impl Runner {
                         let title = format!("{}_{}", current_title, substituent_name);
                         let mut stack_path = stack_path.clone();
                         for (center, replace) in address {
-                            let current_structure = cached_read_stack(base, layer_storage, &stack_path)?;
+                            let current_structure =
+                                cached_read_stack(base, layer_storage, &stack_path)?;
                             let center_layer = Layer::SetCenter {
                                 select: center.clone(),
                                 center: Default::default(),
@@ -334,7 +334,8 @@ impl Runner {
                                 select: replace.clone(),
                                 direction: Vector3::x(),
                             };
-                            let align_layers = layer_storage.create_layers([center_layer, align_layer]);
+                            let align_layers =
+                                layer_storage.create_layers([center_layer, align_layer]);
                             let mut substituent = substituent.clone();
                             SelectOne::Index(0).set_atom(&mut substituent, None);
                             SelectOne::Index(1).set_atom(&mut substituent, None);
@@ -361,7 +362,8 @@ impl Runner {
                                 substituent.bonds.set_bond(a, b, bond);
                             }
                             stack_path.extend(align_layers);
-                            stack_path.extend(layer_storage.create_layers([Layer::Fill(substituent)]));
+                            stack_path
+                                .extend(layer_storage.create_layers([Layer::Fill(substituent)]));
                         }
                         updated_stacks.insert(title, stack_path);
                     }
@@ -398,9 +400,11 @@ impl Runner {
                 suffix,
                 target_directory,
                 target_format,
-                openbabel
+                openbabel,
             } => {
-                std::fs::create_dir_all(target_directory).with_context(|| format!("Unable to create directory at {:?}", target_directory))?;
+                std::fs::create_dir_all(target_directory).with_context(|| {
+                    format!("Unable to create directory at {:?}", target_directory)
+                })?;
                 current_window
                     .into_par_iter()
                     .map(|(title, stack_path)| {
@@ -411,7 +415,6 @@ impl Runner {
                             data.atoms.into(),
                             bonds,
                         );
-                    
                         let mut path = target_directory.clone().join(&output.title);
                         let content = output.output(&target_format)?;
                         let content = [prefix.clone(), content, suffix.clone()]

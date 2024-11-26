@@ -1,11 +1,16 @@
-use std::{collections::{BTreeSet, HashMap}, ops::RangeInclusive};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    ops::RangeInclusive,
+};
 
-use n_to_n::NtoN;
 use nalgebra::{Isometry3, Point3, Translation3, Vector3};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    chemistry::Atom3D, sparse_molecule::{SparseAtomList, SparseMolecule}, utils::geometric::axis_angle_for_b2a,
+    chemistry::Atom3D,
+    group_name::GroupName,
+    sparse_molecule::{SparseAtomList, SparseMolecule},
+    utils::geometric::axis_angle_for_b2a,
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -17,13 +22,8 @@ pub enum Layer {
     },
     AppendAtoms(Vec<Atom3D>),
     SetBond(Vec<(SelectOne, SelectOne, f64)>),
-    Plugin {
-        plugin_name: String,
-        arguments: Vec<String>,
-        data: SparseMolecule,
-    },
-    IdMap(HashMap<String, usize>),
-    GroupMap(NtoN),
+    IdMap(BTreeMap<String, usize>),
+    GroupMap(GroupName),
     SetCenter {
         select: SelectOne,
         #[serde(default)]
@@ -60,10 +60,10 @@ impl Default for Layer {
 impl Layer {
     pub fn filter(&self, mut current: SparseMolecule) -> Result<SparseMolecule, SelectOne> {
         match self {
-            Self::Fill(data) => current.migrate(data),
+            Self::Fill(data) => current.migrate(data.clone()),
             Self::SetBond(bonds) => {
                 for (a, b, bond) in bonds {
-                    let a= a.to_index(&current).ok_or(a.clone())?;
+                    let a = a.to_index(&current).ok_or(a.clone())?;
                     let b = b.to_index(&current).ok_or(b.clone())?;
                     current.bonds.set_bond(a, b, Some(*bond));
                 }
@@ -77,9 +77,20 @@ impl Layer {
                     atoms.iter().map(|atom| Some(*atom)).collect(),
                 );
             }
-            Self::IdMap(data) => current.ids.extend(data.clone()),
-            Self::GroupMap(data) => current.groups.extend(data.clone()),
-            Self::Plugin { data, .. } => current.migrate(data),
+            Self::IdMap(data) => {
+                if let Some(current_ids) = &mut current.ids {
+                    current_ids.extend(data.clone());
+                } else {
+                    current.ids = Some(data.clone());
+                }
+            }
+            Self::GroupMap(data) => {
+                if let Some(current_groups) = &mut current.groups {
+                    current_groups.extend(data.clone());
+                } else {
+                    current.groups = Some(data.clone());
+                }
+            }
             Self::SetCenter { select, center } => {
                 let target_atom = select.get_atom(&current);
                 if let Some(target_atom) = target_atom {
@@ -141,17 +152,18 @@ impl Layer {
             }
             Self::RemoveAtoms(select) => {
                 let selected = select.to_indexes(&current);
-                let atoms = SparseAtomList::from((0..current.atoms.len())
-                    .map(|index| {
-                        if selected.contains(&index) {
-                            Some(Atom3D::default())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>()
+                let atoms = SparseAtomList::from(
+                    (0..current.atoms.len())
+                        .map(|index| {
+                            if selected.contains(&index) {
+                                Some(Atom3D::default())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<_>>(),
                 );
-                current.atoms.migrate(&atoms);
+                current.atoms.migrate(atoms);
             }
         }
         Ok(current)
@@ -169,7 +181,7 @@ impl SelectOne {
     pub fn to_index(&self, layer: &SparseMolecule) -> Option<usize> {
         match self {
             Self::Index(index) => Some(*index),
-            Self::IdName(id_name) => layer.ids.get(id_name).copied(),
+            Self::IdName(id_name) => layer.ids.as_ref()?.get(id_name).copied(),
         }
     }
 
@@ -209,12 +221,11 @@ impl SelectMany {
                 .collect(),
             Self::GroupName(group_name) => layer
                 .groups
-                .get_left(group_name)
-                .into_iter()
-                .copied()
-                .collect(),
+                .as_ref()
+                .map(|groups| groups.get_left(group_name).into_iter().copied().collect())
+                .unwrap_or_default(),
             Self::Indexes(indexes) => indexes.clone(),
-            Self::Range(range) => range.clone().collect()
+            Self::Range(range) => range.clone().collect(),
         }
     }
 }

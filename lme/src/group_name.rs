@@ -3,22 +3,22 @@ use std::collections::btree_set::IntoIter;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ops::RangeInclusive;
 
-type NtoNData = BTreeSet<(String, usize)>;
+type GroupStorage = BTreeSet<(String, usize)>;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
-#[serde(from = "FriendlyNtoN")]
-pub struct NtoN(NtoNData);
+#[serde(from = "FriendlyGroupName")]
+pub struct GroupName(GroupStorage);
 
-impl NtoN {
+impl GroupName {
     pub fn new() -> Self {
         Self(BTreeSet::new())
     }
 
-    pub fn data(&self) -> &NtoNData {
+    pub fn data(&self) -> &GroupStorage {
         &self.0
     }
 
-    fn data_mut(&mut self) -> &mut NtoNData {
+    fn data_mut(&mut self) -> &mut GroupStorage {
         &mut self.0
     }
 
@@ -88,19 +88,19 @@ impl NtoN {
     }
 }
 
-impl<T: Iterator<Item = (String, usize)>> From<T> for NtoN {
+impl<T: Iterator<Item = (String, usize)>> From<T> for GroupName {
     fn from(value: T) -> Self {
         Self(value.collect())
     }
 }
 
-impl Into<NtoNData> for NtoN {
-    fn into(self) -> NtoNData {
+impl Into<GroupStorage> for GroupName {
+    fn into(self) -> GroupStorage {
         self.0
     }
 }
 
-impl IntoIterator for NtoN {
+impl IntoIterator for GroupName {
     type Item = (String, usize);
     type IntoIter = IntoIter<(String, usize)>;
     fn into_iter(self) -> Self::IntoIter {
@@ -108,7 +108,7 @@ impl IntoIterator for NtoN {
     }
 }
 
-impl FromIterator<(String, usize)> for NtoN {
+impl FromIterator<(String, usize)> for GroupName {
     fn from_iter<T: IntoIterator<Item = (String, usize)>>(iter: T) -> Self {
         Self::from(iter.into_iter())
     }
@@ -116,7 +116,7 @@ impl FromIterator<(String, usize)> for NtoN {
 
 #[derive(Deserialize, Serialize)]
 #[serde(untagged)]
-enum IndexCollect {
+pub enum IndexCollect {
     Collect(BTreeSet<usize>),
     Range(RangeInclusive<usize>),
 }
@@ -132,21 +132,21 @@ impl IndexCollect {
 
 #[derive(Deserialize, Serialize)]
 #[serde(untagged)]
-enum FriendlyNtoN {
+pub enum FriendlyGroupName {
     UnFriendly(BTreeSet<(String, usize)>),
     Friendly(BTreeMap<String, IndexCollect>),
 }
 
-impl From<FriendlyNtoN> for NtoN {
-    fn from(value: FriendlyNtoN) -> Self {
+impl From<FriendlyGroupName> for GroupName {
+    fn from(value: FriendlyGroupName) -> Self {
         Self::from_iter(match value {
-            FriendlyNtoN::Friendly(value) => Self::from_iter(
+            FriendlyGroupName::Friendly(value) => Self::from_iter(
                 value
                     .into_iter()
                     .map(|(k, v)| v.collect().into_iter().map(move |v| ((&k).to_string(), v)))
                     .flatten(),
             ),
-            FriendlyNtoN::UnFriendly(value) => Self(value),
+            FriendlyGroupName::UnFriendly(value) => Self(value),
         })
     }
 }

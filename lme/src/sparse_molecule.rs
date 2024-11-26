@@ -1,16 +1,19 @@
 use std::{
-    collections::{BTreeSet, HashMap},
+    collections::{BTreeMap, BTreeSet},
     fs::File,
     ops::Div,
     path::PathBuf,
 };
 
-use anyhow::Context;
-use n_to_n::NtoN;
+use anyhow::{Context, Ok};
 use nalgebra::Isometry3;
 use serde::{Deserialize, Serialize};
 
-use crate::chemistry::{validated_element_num, Atom3D};
+use crate::{
+    chemistry::{validated_element_num, Atom3D},
+    group_name::{FriendlyGroupName, GroupName, IndexCollect},
+    layer::Layer,
+};
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
 pub struct SparseAtomList(Vec<Option<Atom3D>>);
@@ -89,7 +92,7 @@ impl SparseAtomList {
             })
     }
 
-    pub fn migrate(&mut self, other: &Self) {
+    pub fn migrate(&mut self, other: Self) {
         let capacity = self.len().max(other.len());
         self.extend_to(capacity);
         self.0
@@ -203,7 +206,7 @@ impl SparseBondMatrix {
         self.0[b][a] = bond;
     }
 
-    pub fn migrate(&mut self, other: &Self) {
+    pub fn migrate(&mut self, other: Self) {
         for row_idx in 0..other.len() {
             for col_idx in row_idx..other.len() {
                 let bond = other
@@ -252,35 +255,56 @@ impl<T: Clone + Iterator<Item = ((usize, usize), f64)>> From<T> for SparseBondMa
 }
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
-#[serde(try_from="SparseMoleculeLoader")]
+#[serde(try_from = "SparseMoleculeLoader")]
 pub struct SparseMolecule {
     pub atoms: SparseAtomList,
     pub bonds: SparseBondMatrix,
-    pub ids: HashMap<String, usize>,
-    pub groups: NtoN,
+    pub ids: Option<BTreeMap<String, usize>>,
+    pub groups: Option<GroupName>,
 }
 
 impl SparseMolecule {
-    pub fn migrate(&mut self, other: &Self) {
-        self.atoms.migrate(&other.atoms);
-        self.bonds.migrate(&other.bonds);
-        self.ids.extend(other.ids.clone());
-        self.groups.extend(other.groups.clone());
+    pub fn len(&self) -> usize {
+        self.atoms.len()
+    }
+
+    pub fn extend_to(&mut self, capacity: usize) {
+        self.atoms.extend_to(capacity);
+        self.bonds.extend_to(capacity);
+    }
+
+    pub fn migrate(&mut self, other: Self) {
+        self.atoms.migrate(other.atoms);
+        self.bonds.migrate(other.bonds);
+        match (&mut self.ids, &other.ids) {
+            (Some(ids), Some(other_ids)) => {
+                ids.extend(other_ids.clone());
+            }
+            _ => self.ids = self.ids.clone().or(other.ids.clone()),
+        }
+        match (&mut self.groups, &other.groups) {
+            (Some(groups), Some(other_groups)) => {
+                groups.extend(other_groups.clone());
+            }
+            _ => self.groups = self.groups.clone().or(other.groups.clone()),
+        }
     }
 
     pub fn offset(self, offset: usize) -> Self {
         let atoms = self.atoms.offset(offset);
         let bonds = self.bonds.offset(offset);
-        let ids: HashMap<String, usize> = self
-            .ids
-            .into_iter()
-            .map(|(id, idx)| (id, idx + offset))
-            .collect();
-        let groups = NtoN::from(
-            self.groups
-                .into_iter()
-                .map(|(group_name, idx)| (group_name, idx + offset)),
-        );
+        let ids = self.ids.map(|ids| {
+            ids.into_iter()
+                .map(|(id, idx)| (id, idx + offset))
+                .collect()
+        });
+        let groups = self.groups.map(|groups| {
+            GroupName::from(
+                groups
+                    .into_iter()
+                    .map(|(group_name, idx)| (group_name, idx + offset)),
+            )
+        });
         Self {
             atoms,
             bonds,
@@ -297,22 +321,71 @@ enum SparseMoleculeLoader {
     Data {
         atoms: SparseAtomList,
         bonds: SparseBondMatrix,
-        ids: HashMap<String, usize>,
-        groups: NtoN,
+        #[serde(default)]
+        ids: Option<BTreeMap<String, usize>>,
+        #[serde(default)]
+        groups: Option<GroupName>,
     },
+    Component(Vec<SparseMoleculeComponent>),
+}
+
+#[derive(Deserialize)]
+struct SparseMoleculeComponent {
+    name: String,
+    #[serde(default)]
+    content: SparseMolecule,
+    #[serde(default)]
+    capacity: usize,
+}
+
+impl TryFrom<SparseMoleculeComponent> for SparseMolecule {
+    type Error = anyhow::Error;
+    fn try_from(mut value: SparseMoleculeComponent) -> Result<Self, Self::Error> {
+        value.content.extend_to(value.capacity);
+        let max_component_idx = value.content.len().checked_sub(1).with_context(|| {
+            format!(
+                "Capacity of component {} is {}, invalid",
+                value.name, value.capacity
+            )
+        })?;
+        let group_name = GroupName::from(FriendlyGroupName::Friendly(BTreeMap::from([(
+            value.name,
+            IndexCollect::Range(0..=max_component_idx),
+        )])));
+        Ok(Layer::GroupMap(group_name)
+            .filter(value.content)
+            .expect("Should never return Err here"))
+    }
 }
 
 impl TryFrom<SparseMoleculeLoader> for SparseMolecule {
     type Error = anyhow::Error;
     fn try_from(value: SparseMoleculeLoader) -> Result<Self, Self::Error> {
         match value {
-            SparseMoleculeLoader::Data {atoms, bonds, ids, groups} => {
-                Ok(Self {atoms, bonds, ids, groups})
-            },
+            SparseMoleculeLoader::Data {
+                atoms,
+                bonds,
+                ids,
+                groups,
+            } => Ok(Self {
+                atoms,
+                bonds,
+                ids,
+                groups,
+            }),
             SparseMoleculeLoader::FilePath(path) => {
-                let file = File::open(&path)
-                    .with_context(|| format!("Unable to load sparse molecule file from path {:?}", path))?;
+                let file = File::open(&path).with_context(|| {
+                    format!("Unable to load sparse molecule file from path {:?}", path)
+                })?;
                 Ok(serde_yaml::from_reader(file)?)
+            },
+            SparseMoleculeLoader::Component(components) => {
+                let mut molecule = SparseMolecule::default();
+                for component in components {
+                    let component = SparseMolecule::try_from(component)?;
+                    molecule.migrate(component.offset(molecule.len()));
+                }
+                Ok(molecule)
             }
         }
     }

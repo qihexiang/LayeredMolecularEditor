@@ -38,7 +38,9 @@ impl Step {
                 let prefix = self.name.clone().unwrap_or(index.to_string());
                 workflow_data.current_window = BTreeMap::new();
                 for (suffix, generated_stacks) in named_stacks {
-                    workflow_data.current_window.extend(generated_stacks.clone());
+                    workflow_data
+                        .current_window
+                        .extend(generated_stacks.clone());
                     let name = [prefix.to_string(), suffix].join("_");
                     workflow_data.windows.insert(name, generated_stacks);
                 }

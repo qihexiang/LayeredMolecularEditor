@@ -1,9 +1,7 @@
-use std::{collections::HashMap, fs::File};
-
 use clap::Parser;
 use glob::glob;
 use lme::sparse_molecule::{SparseAtomList, SparseBondMatrix, SparseMolecule};
-use n_to_n::NtoN;
+use std::fs::File;
 use workflow::io::BasicIOMolecule;
 
 #[derive(Parser)]
@@ -46,8 +44,8 @@ fn main() {
             SparseMolecule {
                 atoms,
                 bonds,
-                ids: HashMap::new(),
-                groups: NtoN::new(),
+                ids: None,
+                groups: None,
             }
         };
 

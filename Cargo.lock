@@ -396,7 +396,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "lazy_static",
- "n_to_n",
  "nalgebra",
  "serde",
  "serde_yaml",
@@ -427,13 +426,6 @@ name = "memchr"
 version = "2.7.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "78ca9ab1a0babb1e7d5695e3530886289c18cf2f87ec19a575a0abdce112e3a3"
-
-[[package]]
-name = "n_to_n"
-version = "0.1.0"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "nalgebra"
@@ -912,7 +904,6 @@ dependencies = [
  "clap",
  "glob",
  "lme",
- "n_to_n",
  "nalgebra",
  "rayon",
  "serde",
