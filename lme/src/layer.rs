@@ -23,7 +23,7 @@ pub enum Layer {
     AppendAtoms(Vec<Atom3D>),
     SetBond(Vec<(SelectOne, SelectOne, f64)>),
     IdMap(BTreeMap<String, usize>),
-    GroupMap(GroupName),
+    GroupMap(Vec<(String, SelectMany)>),
     SetCenter {
         select: SelectOne,
         #[serde(default)]
@@ -85,10 +85,17 @@ impl Layer {
                 }
             }
             Self::GroupMap(data) => {
-                if let Some(current_groups) = &mut current.groups {
-                    current_groups.extend(data.clone());
-                } else {
-                    current.groups = Some(data.clone());
+                for (name, selects) in data {
+                    let selects = selects
+                        .to_indexes(&current)
+                        .into_iter()
+                        .map(|index| (name.to_string(), index));
+                    if let Some(current_groups) = &mut current.groups {
+                        current_groups.extend(selects);
+                    } else {
+                        current.groups =
+                            Some(GroupName::from_iter(selects.collect::<BTreeSet<_>>()));
+                    }
                 }
             }
             Self::SetCenter { select, center } => {
@@ -170,7 +177,7 @@ impl Layer {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, PartialOrd, Ord, Eq)]
 #[serde(untagged)]
 pub enum SelectOne {
     Index(usize),
@@ -200,8 +207,13 @@ impl SelectOne {
 #[serde(untagged)]
 pub enum SelectMany {
     All,
+    Complex {
+        includes: Vec<SelectMany>,
+        #[serde(default)]
+        excludes: Vec<SelectMany>,
+    },
     Element(usize),
-    Indexes(BTreeSet<usize>),
+    Indexes(BTreeSet<SelectOne>),
     Range(RangeInclusive<usize>),
     GroupName(String),
 }
@@ -224,8 +236,22 @@ impl SelectMany {
                 .as_ref()
                 .map(|groups| groups.get_left(group_name).into_iter().copied().collect())
                 .unwrap_or_default(),
-            Self::Indexes(indexes) => indexes.clone(),
+            Self::Indexes(indexes) => indexes
+                .iter()
+                .filter_map(|select| select.to_index(layer))
+                .collect(),
             Self::Range(range) => range.clone().collect(),
+            Self::Complex { includes, excludes } => {
+                let mut selected = BTreeSet::new();
+                for include in includes {
+                    selected.extend(include.to_indexes(layer));
+                }
+                for exclude in excludes {
+                    let exclude = exclude.to_indexes(layer);
+                    selected.retain(|index| !exclude.contains(index));
+                }
+                selected
+            }
         }
     }
 }

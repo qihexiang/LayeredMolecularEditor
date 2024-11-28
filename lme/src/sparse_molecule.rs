@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     chemistry::{validated_element_num, Atom3D},
-    group_name::{FriendlyGroupName, GroupName, IndexCollect},
-    layer::Layer,
+    group_name::GroupName,
+    layer::{Layer, SelectMany},
 };
 
 #[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
@@ -360,11 +360,10 @@ impl TryFrom<SparseMoleculeComponent> for SparseMolecule {
                 value.name, value.capacity
             )
         })?;
-        let group_name = GroupName::from(FriendlyGroupName::Friendly(BTreeMap::from([(
+        Ok(Layer::GroupMap(vec![(
             value.name,
-            IndexCollect::Range(0..=max_component_idx),
-        )])));
-        Ok(Layer::GroupMap(group_name)
+            SelectMany::Range(0..=max_component_idx),
+        )])
             .filter(value.content)
             .expect("Should never return Err here"))
     }

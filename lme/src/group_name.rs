@@ -119,6 +119,11 @@ impl FromIterator<(String, usize)> for GroupName {
 pub enum IndexCollect {
     Collect(BTreeSet<usize>),
     Range(RangeInclusive<usize>),
+    Complex {
+        includes: Vec<IndexCollect>,
+        #[serde(default)]
+        excludes: Vec<IndexCollect>,
+    },
 }
 
 impl IndexCollect {
@@ -126,6 +131,18 @@ impl IndexCollect {
         match self {
             IndexCollect::Collect(value) => value,
             IndexCollect::Range(range) => range.collect(),
+            IndexCollect::Complex { includes, excludes } => {
+                let mut content = BTreeSet::new();
+                for include in includes {
+                    content.extend(include.collect());
+                }
+
+                for exclude in excludes {
+                    let exclude = exclude.collect();
+                    content.retain(|index| !exclude.contains(index));
+                }
+                content
+            }
         }
     }
 }
