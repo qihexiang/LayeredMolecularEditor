@@ -36,7 +36,7 @@ fn main() {
             select: SelectOne::Index(0),
             center: Default::default(),
         };
-        let align_layer = Layer::DirectionAlgin {
+        let align_layer = Layer::DirectionAlign {
             select: SelectOne::Index(1),
             direction: Vector3::x(),
         };

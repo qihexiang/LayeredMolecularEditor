@@ -16,6 +16,8 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Layer {
     Fill(SparseMolecule),
+    Insert(usize, SparseMolecule),
+    Append(String, SparseMolecule),
     SetAtom {
         target: SelectOne,
         atom: Option<Atom3D>,
@@ -29,7 +31,7 @@ pub enum Layer {
         #[serde(default)]
         center: Point3<f64>,
     },
-    DirectionAlgin {
+    DirectionAlign {
         select: SelectOne,
         #[serde(default = "Vector3::x")]
         direction: Vector3<f64>,
@@ -37,6 +39,12 @@ pub enum Layer {
     Translation {
         select: SelectMany,
         vector: Vector3<f64>,
+    },
+    TranslationTo {
+        select: SelectMany,
+        target: SelectOne,
+        #[serde(default)]
+        position: Point3<f64>
     },
     Rotation {
         select: SelectMany,
@@ -61,6 +69,17 @@ impl Layer {
     pub fn filter(&self, mut current: SparseMolecule) -> Result<SparseMolecule, SelectOne> {
         match self {
             Self::Fill(data) => current.migrate(data.clone()),
+            Self::Insert(offset, molecule) => {
+                current.migrate(molecule.clone().offset(*offset));
+            },
+            Self::Append(prefix, molecule) => {
+                let mut molecule = molecule.clone();
+                molecule.ids = molecule.ids.map(|ids| ids.into_iter().map(|(name, index)| (format!("{}_{}", prefix, name), index)).collect());
+                molecule.groups = molecule.groups.map(|groups| GroupName::from_iter(groups.into_iter().map(|(group_name, index)| (format!("{}_{}", prefix, group_name), index))));
+                let molecule = Layer::GroupMap(vec![(prefix.to_string(), SelectMany::All)]).filter(molecule)?;
+                let molecule = molecule.offset(current.len());
+                current.migrate(molecule);
+            }
             Self::SetBond(bonds) => {
                 for (a, b, bond) in bonds {
                     let a = a.to_index(&current).ok_or(a.clone())?;
@@ -111,7 +130,7 @@ impl Layer {
                     Err(select.clone())?
                 }
             }
-            Self::DirectionAlgin { select, direction } => {
+            Self::DirectionAlign { select, direction } => {
                 let target_atom = select.get_atom(&current).ok_or(select.clone())?;
                 let current_direction = target_atom.position - Point3::default();
                 let (axis, angle) = axis_angle_for_b2a(*direction, current_direction);
@@ -125,6 +144,11 @@ impl Layer {
                 current
                     .atoms
                     .isometry(translation, &select.to_indexes(&current));
+            }
+            Self::TranslationTo { select, target, position } => {
+                let target_atom = target.get_atom(&current).ok_or(target.clone())?;
+                let vector = *position - target_atom.position;
+                current = Self::Translation { select: select.clone(), vector }.filter(current)?;
             }
             Self::Rotation {
                 select,

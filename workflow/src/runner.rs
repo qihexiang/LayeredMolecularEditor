@@ -340,7 +340,7 @@ impl Runner {
                                 select: center.clone(),
                                 center: Default::default(),
                             };
-                            let align_layer = Layer::DirectionAlgin {
+                            let align_layer = Layer::DirectionAlign {
                                 select: replace.clone(),
                                 direction: Vector3::x(),
                             };
