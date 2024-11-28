@@ -16,7 +16,7 @@ use tempfile::tempdir;
 use glob::glob;
 use rayon::prelude::*;
 
-use crate::io::BasicIOMolecule;
+use crate::io::{BasicIOMolecule, SparseMoleculeMap};
 use crate::obabel::obabel;
 use crate::regexsed::regex_sed;
 use crate::workflow_data::{LayerStorage, LayerStorageError};
@@ -42,6 +42,8 @@ pub enum Runner {
         target_format: String,
         #[serde(default)]
         openbabel: bool,
+        #[serde(default)]
+        export_map: bool
     },
     Rename {
         #[serde(default)]
@@ -88,6 +90,8 @@ pub struct FormatOptions {
     openbabel: bool,
     #[serde(default)]
     regex: Vec<String>,
+    #[serde(default)]
+    export_map: bool
 }
 
 #[derive(Deserialize)]
@@ -222,6 +226,12 @@ impl Runner {
                                 pre_path
                             )
                         })?;
+                    if pre_format.export_map {
+                        let map_file_path = working_directory.join("input.map.json");
+                        let content = SparseMoleculeMap::from(structure.clone());
+                        let file = File::create(&map_file_path).with_context(|| format!("Unable to create map file at {:?}", map_file_path))?;
+                        serde_json::to_writer(file, &content).with_context(|| format!("Unable to serialize map file at {:?}, content: {:#?}", map_file_path, content))?;
+                    }
                     let mut command = Command::new(program);
                     command.current_dir(&working_directory).args(args).envs(envs);
                     if *stdin {
@@ -401,6 +411,7 @@ impl Runner {
                 target_directory,
                 target_format,
                 openbabel,
+                export_map
             } => {
                 std::fs::create_dir_all(target_directory).with_context(|| {
                     format!("Unable to create directory at {:?}", target_directory)

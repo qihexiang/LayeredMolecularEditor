@@ -1,14 +1,43 @@
-use std::io::Read;
+use std::{collections::BTreeMap, io::Read};
 
 use anyhow::{anyhow, Context, Error, Result};
-use lme::chemistry::{element_num_to_symbol, element_symbol_to_num, Atom3D};
+use lme::{chemistry::{element_num_to_symbol, element_symbol_to_num, Atom3D}, group_name::GroupName, sparse_molecule::SparseMolecule};
 use nalgebra::Point3;
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SparseMoleculeMap {
+    pub atoms: Vec<bool>,
+    pub ids: BTreeMap<String, usize>,
+    pub groups: GroupName
+}
+
+impl From<SparseMolecule> for SparseMoleculeMap {
+    fn from(value: SparseMolecule) -> Self {
+        Self {
+            atoms: value.atoms.into(),
+            ids: value.ids.unwrap_or_default(),
+            groups: value.groups.unwrap_or_default(),
+        }
+    }
+}
 
 pub struct BasicIOMolecule {
     pub atoms: Vec<Atom3D>,
     pub bonds: Vec<(usize, usize, f64)>,
     pub title: String,
+}
+
+impl From<(SparseMolecule, String)> for BasicIOMolecule {
+    fn from((molecule, title): (SparseMolecule, String)) -> Self {
+        let bonds = molecule.bonds.to_continuous_list(&molecule.atoms);
+        Self {
+            atoms: molecule.atoms.into(),
+            bonds,
+            title
+        }
+    }
 }
 
 impl BasicIOMolecule {

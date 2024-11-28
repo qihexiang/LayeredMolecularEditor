@@ -47,6 +47,18 @@ impl Into<Vec<Atom3D>> for SparseAtomList {
     }
 }
 
+impl Into<Vec<bool>> for SparseAtomList {
+    fn into(self) -> Vec<bool> {
+        self.0
+            .into_iter()
+            .map(|item| {
+                item.map(|atom| validated_element_num(atom.element))
+                    .unwrap_or_default()
+            })
+            .collect()
+    }
+}
+
 impl SparseAtomList {
     pub fn new(capacity: usize) -> Self {
         Self(vec![Default::default(); capacity])
@@ -378,7 +390,7 @@ impl TryFrom<SparseMoleculeLoader> for SparseMolecule {
                     format!("Unable to load sparse molecule file from path {:?}", path)
                 })?;
                 Ok(serde_yaml::from_reader(file)?)
-            },
+            }
             SparseMoleculeLoader::Component(components) => {
                 let mut molecule = SparseMolecule::default();
                 for component in components {
