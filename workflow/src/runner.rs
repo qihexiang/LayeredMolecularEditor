@@ -16,7 +16,7 @@ use tempfile::tempdir;
 use glob::glob;
 use rayon::prelude::*;
 
-use crate::io::{BasicIOMolecule, SparseMoleculeMap};
+use crate::io::{BasicIOMolecule, NamespaceMapping};
 use crate::obabel::obabel;
 use crate::regexsed::regex_sed;
 use crate::workflow_data::{LayerStorage, LayerStorageError};
@@ -228,7 +228,7 @@ impl Runner {
                         })?;
                     if pre_format.export_map {
                         let map_file_path = working_directory.join("input.map.json");
-                        let content = SparseMoleculeMap::from(structure.clone());
+                        let content = NamespaceMapping::from(structure.clone());
                         let file = File::create(&map_file_path).with_context(|| format!("Unable to create map file at {:?}", map_file_path))?;
                         serde_json::to_writer(file, &content).with_context(|| format!("Unable to serialize map file at {:?}, content: {:#?}", map_file_path, content))?;
                     }

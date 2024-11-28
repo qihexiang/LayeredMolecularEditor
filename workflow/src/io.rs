@@ -1,25 +1,56 @@
-use std::{collections::BTreeMap, io::Read};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    io::Read,
+};
 
 use anyhow::{anyhow, Context, Error, Result};
-use lme::{chemistry::{element_num_to_symbol, element_symbol_to_num, Atom3D}, group_name::GroupName, sparse_molecule::SparseMolecule};
+use lme::{
+    chemistry::{element_num_to_symbol, element_symbol_to_num, Atom3D},
+    sparse_molecule::SparseMolecule,
+};
 use nalgebra::Point3;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct SparseMoleculeMap {
-    pub atoms: Vec<bool>,
+pub struct NamespaceMapping {
+    pub len: usize,
     pub ids: BTreeMap<String, usize>,
-    pub groups: GroupName
+    pub groups: BTreeMap<String, BTreeSet<usize>>,
 }
 
-impl From<SparseMolecule> for SparseMoleculeMap {
+impl From<SparseMolecule> for NamespaceMapping {
     fn from(value: SparseMolecule) -> Self {
-        Self {
-            atoms: value.atoms.into(),
-            ids: value.ids.unwrap_or_default(),
-            groups: value.groups.unwrap_or_default(),
-        }
+        let atoms_mapping: BTreeMap<usize, usize> = value.atoms.into();
+        let ids = value
+            .ids
+            .map(|ids| {
+                ids.into_iter()
+                    .filter_map(|(name, index)| {
+                        atoms_mapping
+                            .get(&index)
+                            .copied()
+                            .map(|index| (name, index))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        let groups = value
+            .groups
+            .map(|groups| {
+                groups
+                    .get_lefts()
+                    .into_iter()
+                    .map(|group_name| {
+                        (
+                            group_name.to_string(),
+                            groups.get_left(group_name).copied().collect(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+        Self { len: atoms_mapping.len(), ids, groups }
     }
 }
 
@@ -35,7 +66,7 @@ impl From<(SparseMolecule, String)> for BasicIOMolecule {
         Self {
             atoms: molecule.atoms.into(),
             bonds,
-            title
+            title,
         }
     }
 }

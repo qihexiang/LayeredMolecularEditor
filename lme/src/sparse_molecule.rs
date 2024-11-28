@@ -47,14 +47,16 @@ impl Into<Vec<Atom3D>> for SparseAtomList {
     }
 }
 
-impl Into<Vec<bool>> for SparseAtomList {
-    fn into(self) -> Vec<bool> {
+impl Into<BTreeMap<usize, usize>> for SparseAtomList {
+    fn into(self) -> BTreeMap<usize, usize> {
         self.0
             .into_iter()
-            .map(|item| {
-                item.map(|atom| validated_element_num(atom.element))
-                    .unwrap_or_default()
+            .enumerate()
+            .filter_map(|(index, atom)| {
+                atom.and_then(|atom| if validated_element_num(atom.element) {Some(index)} else {None})
             })
+            .enumerate()
+            .map(|(continous, sparse)| (sparse, continous))
             .collect()
     }
 }
