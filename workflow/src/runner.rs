@@ -22,6 +22,7 @@ use crate::regexsed::regex_sed;
 use crate::workflow_data::{LayerStorage, LayerStorageError};
 
 #[derive(Debug, Deserialize)]
+#[serde(tag = "runner", content = "options")]
 pub enum Runner {
     AppendLayers(Vec<Layer>),
     Substituent {
@@ -43,7 +44,7 @@ pub enum Runner {
         #[serde(default)]
         openbabel: bool,
         #[serde(default)]
-        export_map: bool
+        export_map: bool,
     },
     Rename {
         #[serde(default)]
@@ -91,7 +92,7 @@ pub struct FormatOptions {
     #[serde(default)]
     regex: Vec<String>,
     #[serde(default)]
-    export_map: bool
+    export_map: bool,
 }
 
 #[derive(Deserialize)]
@@ -411,7 +412,7 @@ impl Runner {
                 target_directory,
                 target_format,
                 openbabel,
-                export_map
+                export_map,
             } => {
                 std::fs::create_dir_all(target_directory).with_context(|| {
                     format!("Unable to create directory at {:?}", target_directory)

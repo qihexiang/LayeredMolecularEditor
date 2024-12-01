@@ -53,7 +53,13 @@ impl Into<BTreeMap<usize, usize>> for SparseAtomList {
             .into_iter()
             .enumerate()
             .filter_map(|(index, atom)| {
-                atom.and_then(|atom| if validated_element_num(atom.element) {Some(index)} else {None})
+                atom.and_then(|atom| {
+                    if validated_element_num(atom.element) {
+                        Some(index)
+                    } else {
+                        None
+                    }
+                })
             })
             .enumerate()
             .map(|(continous, sparse)| (sparse, continous))
@@ -362,12 +368,11 @@ impl TryFrom<SparseMoleculeComponent> for SparseMolecule {
                 value.name, value.capacity
             )
         })?;
-        Ok(Layer::GroupMap(vec![(
-            value.name,
-            SelectMany::Range(0..=max_component_idx),
-        )])
-            .filter(value.content)
-            .expect("Should never return Err here"))
+        Ok(
+            Layer::GroupMap(vec![(value.name, SelectMany::Range(0..=max_component_idx))])
+                .filter(value.content)
+                .expect("Should never return Err here"),
+        )
     }
 }
 

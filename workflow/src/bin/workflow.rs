@@ -29,7 +29,7 @@ fn main() {
         workflow_data: workflow_data.clone(),
     };
 
-    for (index, step) in input.steps.into_iter().enumerate().skip(skip) {
+    for (index, step) in input.steps.0.into_iter().enumerate().skip(skip) {
         println!(
             "Enter step: {}, window size: {}",
             index,

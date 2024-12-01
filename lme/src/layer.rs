@@ -14,6 +14,7 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "layer", content = "arguments")]
 pub enum Layer {
     Fill(SparseMolecule),
     Insert(usize, SparseMolecule),
@@ -44,7 +45,7 @@ pub enum Layer {
         select: SelectMany,
         target: SelectOne,
         #[serde(default)]
-        position: Point3<f64>
+        position: Point3<f64>,
     },
     Rotation {
         select: SelectMany,
@@ -71,12 +72,22 @@ impl Layer {
             Self::Fill(data) => current.migrate(data.clone()),
             Self::Insert(offset, molecule) => {
                 current.migrate(molecule.clone().offset(*offset));
-            },
+            }
             Self::Append(prefix, molecule) => {
                 let mut molecule = molecule.clone();
-                molecule.ids = molecule.ids.map(|ids| ids.into_iter().map(|(name, index)| (format!("{}_{}", prefix, name), index)).collect());
-                molecule.groups = molecule.groups.map(|groups| GroupName::from_iter(groups.into_iter().map(|(group_name, index)| (format!("{}_{}", prefix, group_name), index))));
-                let molecule = Layer::GroupMap(vec![(prefix.to_string(), SelectMany::All)]).filter(molecule)?;
+                molecule.ids = molecule.ids.map(|ids| {
+                    ids.into_iter()
+                        .map(|(name, index)| (format!("{}_{}", prefix, name), index))
+                        .collect()
+                });
+                molecule.groups =
+                    molecule.groups.map(|groups| {
+                        GroupName::from_iter(groups.into_iter().map(|(group_name, index)| {
+                            (format!("{}_{}", prefix, group_name), index)
+                        }))
+                    });
+                let molecule = Layer::GroupMap(vec![(prefix.to_string(), SelectMany::All)])
+                    .filter(molecule)?;
                 let molecule = molecule.offset(current.len());
                 current.migrate(molecule);
             }
@@ -145,10 +156,18 @@ impl Layer {
                     .atoms
                     .isometry(translation, &select.to_indexes(&current));
             }
-            Self::TranslationTo { select, target, position } => {
+            Self::TranslationTo {
+                select,
+                target,
+                position,
+            } => {
                 let target_atom = target.get_atom(&current).ok_or(target.clone())?;
                 let vector = *position - target_atom.position;
-                current = Self::Translation { select: select.clone(), vector }.filter(current)?;
+                current = Self::Translation {
+                    select: select.clone(),
+                    vector,
+                }
+                .filter(current)?;
             }
             Self::Rotation {
                 select,

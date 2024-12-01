@@ -50,7 +50,11 @@ impl From<SparseMolecule> for NamespaceMapping {
                     .collect()
             })
             .unwrap_or_default();
-        Self { len: atoms_mapping.len(), ids, groups }
+        Self {
+            len: atoms_mapping.len(),
+            ids,
+            groups,
+        }
     }
 }
 
