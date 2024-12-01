@@ -103,28 +103,14 @@ impl TryFrom<StepLoader> for Steps {
                     "Loading {:?} from working directory {:?}",
                     filepath, current_directory
                 );
-                let load_file_parent = filepath.parent().with_context(|| {
-                    format!(
-                        "Failed to get parent directory of {:?}, workding direcotry is {:?}",
-                        filepath, current_directory
-                    )
-                })?;
+
                 let file = File::open(&filepath).with_context(|| {
                     format!(
                         "Failed to open target file {:?} in working directory {:?}",
                         filepath, current_directory
                     )
                 })?;
-                std::env::set_current_dir(load_file_parent).with_context(|| {
-                    format!("Failed to set {:?} as working directory", load_file_parent)
-                })?;
                 let result = serde_yaml::from_reader(file)?;
-                std::env::set_current_dir(&current_directory).with_context(|| {
-                    format!(
-                        "Failed to set working directory back to {:?}",
-                        current_directory
-                    )
-                })?;
                 Ok(result)
             }
         }
