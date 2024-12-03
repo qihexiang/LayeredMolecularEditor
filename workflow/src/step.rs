@@ -1,6 +1,6 @@
 use std::{collections::BTreeMap, fs::File, path::PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
 
 use crate::{
@@ -81,38 +81,40 @@ impl TryFrom<StepsLoader> for Steps {
 }
 
 #[derive(Deserialize, Debug)]
-#[serde(untagged)]
-enum StepLoader {
-    Data(Step),
-    Loader(PathBuf),
+struct StepLoader {
+    from: Option<String>,
+    name: Option<String>,
+    run: Option<Runner>,
+    load: Option<PathBuf>,
 }
 
 impl TryFrom<StepLoader> for Steps {
     type Error = anyhow::Error;
     fn try_from(value: StepLoader) -> Result<Self> {
-        match value {
-            StepLoader::Data(step) => Ok(Steps(vec![step])),
-            StepLoader::Loader(filepath) => {
-                let current_directory = std::env::current_dir().with_context(|| {
-                    format!(
-                        "Unable to get current working directory for loading {:?}",
-                        filepath
-                    )
-                })?;
-                println!(
-                    "Loading {:?} from working directory {:?}",
-                    filepath, current_directory
-                );
+        if let Some(filepath) = value.load {
+            let current_directory = std::env::current_dir().with_context(|| {
+                format!(
+                    "Unable to get current working directory for loading {:?}",
+                    filepath
+                )
+            })?;
+            println!(
+                "Loading {:?} from working directory {:?}",
+                filepath, current_directory
+            );
 
-                let file = File::open(&filepath).with_context(|| {
-                    format!(
-                        "Failed to open target file {:?} in working directory {:?}",
-                        filepath, current_directory
-                    )
-                })?;
-                let result = serde_yaml::from_reader(file)?;
-                Ok(result)
-            }
+            let file = File::open(&filepath).with_context(|| {
+                format!(
+                    "Failed to open target file {:?} in working directory {:?}",
+                    filepath, current_directory
+                )
+            })?;
+            let result = serde_yaml::from_reader(file)?;
+            Ok(result)
+        } else if let Some(runner) = value.run {
+            Ok(Steps(vec![Step {from: value.from, name: value.name, run: runner}]))
+        } else {
+            Err(anyhow!(format!("No load or run field is specified in {:#?}", value)))
         }
     }
 }
