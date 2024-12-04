@@ -37,6 +37,18 @@ if __name__ == "__main__":
         v = [convert_name_to_index(name, input_mapping["ids"], input_mapping["groups"]) for name in v]
         v = [item + 1 for items in v for item in items]
         constraints_config[k] = v
+    
+    for (index, [a, b, distance]) in enumerate(constraints_config["distance"]):
+        [[a], [b]] = [convert_name_to_index(name, input_mapping["ids"], input_mapping["groups"]) for name in [a,b]]
+        constraints_config["distance"][index] = [a, b, distance]
+
+    for (index, [a, b, c, angle]) in enumerate(constraints_config["angle"]):
+        [[a], [b], [c]] = [convert_name_to_index(name, input_mapping["ids"], input_mapping["groups"]) for name in [a, b, c]]
+        constraints_config["angle"][index] = [a,b,c,angle]
+
+    for (index, [a, b, c, d, torsion]) in enumerate(constraints_config["torsion"]):
+        [[a], [b], [c], [d]] = [convert_name_to_index(name, input_mapping["ids"], input_mapping["groups"]) for name in [a, b, c, d]]
+        constraints_config["torsion"][index] = [a,b,c,d, torsion]
 
     constraints = openbabel.OBFFConstraints()
     for ignore in constraints_config["ignore"]:
