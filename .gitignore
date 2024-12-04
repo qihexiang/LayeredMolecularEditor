@@ -3,5 +3,4 @@
 *.xyz
 *.mol2
 *.json
-*.yaml
-example/*
+**/output/*
