@@ -4,6 +4,8 @@ base:
 - name: S2
   capacity: 10
 
+no_checkpoint: true
+
 steps:
 - load: ./includes/A1.yaml
 - load: ./includes/A1_H3O.yaml

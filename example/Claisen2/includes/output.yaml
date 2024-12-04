@@ -1,0 +1,6 @@
+- run:
+    runner: Output
+    options:
+      target_directory: output
+      target_format: xyz
+      openbabel: true

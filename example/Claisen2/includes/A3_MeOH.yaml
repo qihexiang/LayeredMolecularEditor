@@ -1,0 +1,18 @@
+# Demethanolization from A2, generate A3_MeOH complex
+- from: A2
+  run:
+    runner: Rename
+    options:
+      replace: [A2, A3_MeOH]
+- run:
+    runner: AppendLayers
+    options:
+    - layer: SetBond
+      arguments:
+      - [C2, O1, 0.0]
+- load: ./includes/uff.yaml
+- name: A3_MeOH
+  run:
+    runner: CheckPoint
+    options:
+# - load: ./includes/output.yaml

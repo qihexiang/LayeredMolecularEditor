@@ -1,6 +1,1 @@
 /target
-**/output
-*.xyz
-*.mol2
-*.json
-**/output/*

@@ -1,0 +1,14 @@
+# Remove H3O, get A5 structure
+- from: A5_H3O
+  run:
+    runner: Rename
+    options:
+      replace: [A5_H3O, A5]
+- name: A5
+  run: 
+    runner: AppendLayers
+    options:
+    - layer: RemoveAtoms
+      arguments: 
+        includes: [water, [H1]]
+- load: ./includes/output.yaml

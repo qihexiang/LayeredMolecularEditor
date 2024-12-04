@@ -1,0 +1,9 @@
+{
+    "ignore": [],
+    "atom": [],
+    "distance": [
+        ["H1", "O2", null]
+    ],
+    "angle": [],
+    "torsion": []
+}

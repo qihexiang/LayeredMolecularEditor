@@ -1,0 +1,14 @@
+# Remove H3O, get A8 structure
+- from: A8_H3O
+  run:
+    runner: Rename
+    options:
+      replace: [A8_H3O, A8]
+- name: A8
+  run: 
+    runner: AppendLayers
+    options:
+    - layer: RemoveAtoms
+      arguments: 
+        includes: [water2, [H2]]
+- load: ./includes/output.yaml

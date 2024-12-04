@@ -1,7 +1,7 @@
 {
     "ignore": [],
-    "atom": ["water_O1", "H1"],
-    "distance": [],
+    "atom": [],
+    "distance": [["water_O1", "H1", null]],
     "angle": [],
     "torsion": []
 }

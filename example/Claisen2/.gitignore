@@ -1,3 +1,5 @@
-gaff/
-output/
-O3C2/
+/*
+!/*.yaml
+!/*.constraints
+!/includes
+!/substituent

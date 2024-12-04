@@ -1,0 +1,14 @@
+# Remove MeOH and get A3 structure
+- from: A3_MeOH
+  run:
+    runner: Rename
+    options:
+      replace: [A3_MeOH, A3]
+- name: A3
+  run:
+    runner: AppendLayers
+    options:
+    - layer: RemoveAtoms
+      arguments:
+        includes: [OMe1, [protonation_A1_H1]]
+- load: ./includes/output.yaml

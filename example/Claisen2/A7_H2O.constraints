@@ -1,0 +1,9 @@
+{
+    "ignore": [],
+    "atom": [],
+    "distance": [
+        ["water2_O1", "H2", null]
+    ],
+    "angle": [],
+    "torsion": []
+}

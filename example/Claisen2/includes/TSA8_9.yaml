@@ -1,0 +1,23 @@
+# 6-ring TS state
+- from: A8
+  run:
+    runner: Rename
+    options:
+      replace: [A8, TSA8_9]
+- run:
+    runner: AppendLayers
+    options:
+    - layer: SetBond
+      arguments:
+      - [C5, O3, 1.0]
+      - [C5, C4, 1.0]
+      - [C4, C3, 1.0]
+      - [C3, C1, 1.0]
+      - [C1, C2, 1.0]
+      - [C2, O3, 1.0]
+- load: ./includes/uff.yaml
+- name: TSA8_9
+  run:
+    runner: CheckPoint
+    options:
+- load: ./includes/output.yaml
