@@ -4,7 +4,10 @@ import json
 import sys
 import os
 
-def convert_name_to_index(name: str, ids: dict[str, int], groups: dict[str, list[int]]) -> list[int]:
+
+def convert_name_to_index(
+    name: str, ids: dict[str, int], groups: dict[str, list[int]]
+) -> list[int]:
     try:
         return [int(name)]
     except ValueError:
@@ -18,7 +21,15 @@ def convert_name_to_index(name: str, ids: dict[str, int], groups: dict[str, list
 
 
 if __name__ == "__main__":
-    [ff_name, input_format, input_file, output_format, output_file, constraints_config, max_steps] = sys.argv[1:]
+    [
+        ff_name,
+        input_format,
+        input_file,
+        output_format,
+        output_file,
+        constraints_config,
+        max_steps,
+    ] = sys.argv[1:]
 
     conv = openbabel.OBConversion()
     conv.SetInAndOutFormats(input_format, output_format)
@@ -30,25 +41,37 @@ if __name__ == "__main__":
         input_mapping = json.load(f)
 
     with open(constraints_config) as f:
-            constraints_config = json.load(f)
+        constraints_config = json.load(f)
 
     for k in ["ignore", "atom"]:
         v = constraints_config[k]
-        v = [convert_name_to_index(name, input_mapping["ids"], input_mapping["groups"]) for name in v]
+        v = [
+            convert_name_to_index(name, input_mapping["ids"], input_mapping["groups"])
+            for name in v
+        ]
         v = [item + 1 for items in v for item in items]
         constraints_config[k] = v
-    
-    for (index, [a, b, distance]) in enumerate(constraints_config["distance"]):
-        [[a], [b]] = [convert_name_to_index(name, input_mapping["ids"], input_mapping["groups"]) for name in [a,b]]
+
+    for index, [a, b, distance] in enumerate(constraints_config["distance"]):
+        [[a], [b]] = [
+            convert_name_to_index(name, input_mapping["ids"], input_mapping["groups"])
+            for name in [a, b]
+        ]
         constraints_config["distance"][index] = [a, b, distance]
 
-    for (index, [a, b, c, angle]) in enumerate(constraints_config["angle"]):
-        [[a], [b], [c]] = [convert_name_to_index(name, input_mapping["ids"], input_mapping["groups"]) for name in [a, b, c]]
-        constraints_config["angle"][index] = [a,b,c,angle]
+    for index, [a, b, c, angle] in enumerate(constraints_config["angle"]):
+        [[a], [b], [c]] = [
+            convert_name_to_index(name, input_mapping["ids"], input_mapping["groups"])
+            for name in [a, b, c]
+        ]
+        constraints_config["angle"][index] = [a, b, c, angle]
 
-    for (index, [a, b, c, d, torsion]) in enumerate(constraints_config["torsion"]):
-        [[a], [b], [c], [d]] = [convert_name_to_index(name, input_mapping["ids"], input_mapping["groups"]) for name in [a, b, c, d]]
-        constraints_config["torsion"][index] = [a,b,c,d, torsion]
+    for index, [a, b, c, d, torsion] in enumerate(constraints_config["torsion"]):
+        [[a], [b], [c], [d]] = [
+            convert_name_to_index(name, input_mapping["ids"], input_mapping["groups"])
+            for name in [a, b, c, d]
+        ]
+        constraints_config["torsion"][index] = [a, b, c, d, torsion]
 
     constraints = openbabel.OBFFConstraints()
     for ignore in constraints_config["ignore"]:
@@ -59,7 +82,7 @@ if __name__ == "__main__":
         if distance is None:
             distance = mol.GetAtom(a).GetDistance(b)
         constraints.AddDistanceConstraint(a, b, float(distance))
-    for [a,b,c, angle] in constraints_config["angle"]:
+    for [a, b, c, angle] in constraints_config["angle"]:
         if angle is None:
             angle = mol.GetAtom(a).GetAngle(b, c)
         constraints.AddAngleConstraint(a, b, c, float(angle))
