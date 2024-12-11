@@ -1,6 +1,7 @@
 use std::{
     fs::File,
     io::{Read, Write},
+    path::PathBuf,
 };
 
 use anyhow::Context;
@@ -16,6 +17,8 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+
+    set_path(input.binaries).unwrap();
 
     let checkpoint = load_checkpoint();
     let (skip, mut workflow_data) = if let Some(checkpoint) = checkpoint {
@@ -92,6 +95,23 @@ fn load_checkpoint() -> Option<WorkflowCheckPoint> {
         skip,
         workflow_data,
     })
+}
+
+fn set_path(user_specified_paths: Vec<PathBuf>) -> anyhow::Result<()> {
+    let current_binary_directory = PathBuf::from(
+        std::env::current_exe()?
+            .parent()
+            .expect("Binary file must have a parent directory"),
+    );
+    let working_directory_bin = std::env::current_dir()?.join("bin");
+    let current_path_var = std::env::var_os("PATH").unwrap_or_default();
+    let current_path_var = std::env::split_paths(&current_path_var);
+    let mut paths = user_specified_paths;
+    paths.extend([working_directory_bin, current_binary_directory]);
+    paths.extend(current_path_var);
+    let paths = std::env::join_paths(paths)?;
+    std::env::set_var("PATH", paths);
+    Ok(())
 }
 
 fn dump_checkpoint(checkpoint: &WorkflowCheckPoint) {
