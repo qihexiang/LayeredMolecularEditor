@@ -22,6 +22,50 @@ use rayon::prelude::*;
 use super::workflow_data::{LayerStorage, LayerStorageError};
 
 #[derive(Debug, Deserialize)]
+pub struct RenameOptions {
+    #[serde(default)]
+    prefix: Option<String>,
+    #[serde(default)]
+    suffix: Option<String>,
+    #[serde(default)]
+    replace: Option<(String, String)>,
+    #[serde(default)]
+    regex: Vec<String>,
+}
+
+impl RenameOptions {
+    fn rename(&self, title: &str) -> anyhow::Result<String> {
+        let mut title = String::from(title);
+        if let Some((from, to)) = &self.replace {
+            title = title.replace(from, to)
+        }
+        title = regex_sed(&title, &self.regex.join("; "))?;
+        if let Some(prefix) = &self.prefix {
+            title = [prefix.to_string(), title].join("_")
+        }
+        if let Some(suffix) = &self.suffix {
+            title = [title, suffix.to_string()].join("_")
+        }
+        Ok(title)
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct FormatOptions {
+    format: String,
+    #[serde(default)]
+    prefix: String,
+    #[serde(default)]
+    suffix: String,
+    #[serde(default)]
+    openbabel: bool,
+    #[serde(default)]
+    regex: Vec<String>,
+    #[serde(default)]
+    export_map: bool,
+}
+
+#[derive(Debug, Deserialize)]
 #[serde(tag = "runner", content = "options")]
 pub enum Runner {
     AppendLayers(Vec<Layer>),
@@ -33,16 +77,7 @@ pub enum Runner {
         command: String,
         arguments: Vec<String>,
     },
-    Rename {
-        #[serde(default)]
-        prefix: Option<String>,
-        #[serde(default)]
-        suffix: Option<String>,
-        #[serde(default)]
-        replace: Option<(String, String)>,
-        #[serde(default)]
-        regex: Vec<String>,
-    },
+    Rename(RenameOptions),
     Calculation {
         working_directory: PathBuf,
         pre_format: FormatOptions,
@@ -51,6 +86,8 @@ pub enum Runner {
         serial_mode: bool,
         #[serde(default)]
         skeleton: Option<PathBuf>,
+        #[serde(default)]
+        redirect_to: Option<RenameOptions>,
         #[serde(default)]
         stdin: bool,
         #[serde(default)]
@@ -69,21 +106,6 @@ pub enum Runner {
         stderr: Option<String>,
     },
     CheckPoint,
-}
-
-#[derive(Deserialize, Debug)]
-pub struct FormatOptions {
-    format: String,
-    #[serde(default)]
-    prefix: String,
-    #[serde(default)]
-    suffix: String,
-    #[serde(default)]
-    openbabel: bool,
-    #[serde(default)]
-    regex: Vec<String>,
-    #[serde(default)]
-    export_map: bool,
 }
 
 #[derive(Deserialize)]
@@ -176,16 +198,22 @@ impl Runner {
                 ignore_failed,
                 stdout,
                 stderr,
+                redirect_to,
             } => {
                 std::fs::create_dir_all(&working_directory).with_context(|| {
                     format!("Unable to create directory at {:?}", working_directory)
                 })?;
                 let handler = |(title, stack_path): (&'a String, &'a Vec<usize>)| {
-                    let working_directory = working_directory.join(title);
+                    let title = if let Some(redirect_to) = redirect_to {
+                        redirect_to.rename(title)?
+                    } else {
+                        title.to_string()
+                    };
+                    let working_directory = working_directory.join(&title);
                     std::fs::create_dir_all(&working_directory).with_context(|| {
                         format!(
                             "Unable to create directory at {:?} for structure titled {}",
-                            working_directory, title
+                            working_directory, &title
                         )
                     })?;
                     if let Some(skeleton) = skeleton {
@@ -201,13 +229,15 @@ impl Runner {
                     } else {
                         pre_content
                     };
-                    let pre_content = regex_sed(&pre_content, &pre_format.regex.join("; "))?;
-                    let pre_content = [
-                        pre_format.prefix.to_string(),
-                        pre_content,
-                        pre_format.suffix.to_string(),
-                    ]
-                    .join("\n");
+                    let mut pre_content = regex_sed(&pre_content, &pre_format.regex.join("; "))?;
+                    
+                    if pre_format.prefix.len() > 0 {
+                        pre_content = format!("{}\n{}", pre_format.prefix, pre_content)
+                    }
+                    if pre_format.suffix.len() > 0 {
+                        pre_content = format!("{}\n{}", pre_content, pre_format.suffix)
+                    }
+
                     let pre_path = working_directory.join(pre_filename);
                     File::create(&pre_path)
                         .with_context(|| {
@@ -226,12 +256,22 @@ impl Runner {
                     if pre_format.export_map {
                         let map_file_path = working_directory.join("input.map.json");
                         let content = NamespaceMapping::from(structure.clone());
-                        let file = File::create(&map_file_path).with_context(|| format!("Unable to create map file at {:?}", map_file_path))?;
-                        serde_json::to_writer(file, &content).with_context(|| format!("Unable to serialize map file at {:?}, content: {:#?}", map_file_path, content))?;
+                        let file = File::create(&map_file_path).with_context(|| {
+                            format!("Unable to create map file at {:?}", map_file_path)
+                        })?;
+                        serde_json::to_writer(file, &content).with_context(|| {
+                            format!(
+                                "Unable to serialize map file at {:?}, content: {:#?}",
+                                map_file_path, content
+                            )
+                        })?;
                     }
                     if let Some(program) = program {
                         let mut command = Command::new(program);
-                        command.current_dir(&working_directory).args(args).envs(envs);
+                        command
+                            .current_dir(&working_directory)
+                            .args(args)
+                            .envs(envs);
                         if *stdin {
                             let stdin = Stdio::from(File::open(&pre_path).with_context(|| {
                                 format!("Unable to open created pre-file at {:?}", pre_content)
@@ -240,7 +280,12 @@ impl Runner {
                         }
                         if let Some(stdout) = stdout {
                             let stdout_path = working_directory.join(stdout);
-                            let stdout_file = File::create(&stdout_path).with_context(|| format!("Unable to create stdout file at {:?} for structure titled {}", stdout_path, title))?;
+                            let stdout_file = File::create(&stdout_path).with_context(|| {
+                                format!(
+                                    "Unable to create stdout file at {:?} for structure titled {}",
+                                    stdout_path, title
+                                )
+                            })?;
                             command.stdout(Stdio::from(stdout_file));
                         } else {
                             command.stdout(Stdio::null());
@@ -248,27 +293,68 @@ impl Runner {
 
                         if let Some(stderr) = stderr {
                             let stderr_path = working_directory.join(stderr);
-                            let stderr_file = File::create(&stderr_path).with_context(|| format!("Unable to create stdout file at {:?} for structure titled {}", stderr_path, title))?;
+                            let stderr_file = File::create(&stderr_path).with_context(|| {
+                                format!(
+                                    "Unable to create stdout file at {:?} for structure titled {}",
+                                    stderr_path, title
+                                )
+                            })?;
                             command.stderr(Stdio::from(stderr_file));
                         } else {
                             command.stderr(Stdio::null());
                         }
 
-                        let mut child = command.spawn().with_context(|| format!("Failed to start process for structure {}, process detail: {:#?}", title, command))?;
+                        let mut child = command.spawn().with_context(|| {
+                            format!(
+                                "Failed to start process for structure {}, process detail: {:#?}",
+                                title, command
+                            )
+                        })?;
                         let result = child.wait().with_context(|| format!("Unable to wait the process handling structure {}, process detail: {:#?}", title, child))?;
 
                         if !result.success() {
-                            Err(anyhow!("Handling process for structure {} failed. Error code {:?}", title, result.code()))?;
+                            Err(anyhow!(
+                                "Handling process for structure {} failed. Error code {:?}",
+                                title,
+                                result.code()
+                            ))?;
                         }
                     }
 
                     let post_path = working_directory.join(post_filename);
-                    let post_file = File::open(&post_path).with_context(|| format!("Failed to open post-calculation file at {:?} for structure {}", post_path, title))?;
+                    let post_file = File::open(&post_path).with_context(|| {
+                        format!(
+                            "Failed to open post-calculation file at {:?} for structure {}",
+                            post_path, title
+                        )
+                    })?;
                     let post_content = BasicIOMolecule::input(&post_format, post_file)?;
-                    let updated_atoms = structure.atoms.update_from_continuous_list(&post_content.atoms).with_context(|| format!("Failed to import atoms from calculated result for structure {}", title))?;
-                    let updated_bonds = post_content.bonds.into_iter()
-                        .map(|(a, b, bond)| Some((structure.atoms.from_continuous_index(a)?, structure.atoms.from_continuous_index(b)?, bond)))
-                        .collect::<Option<Vec<_>>>().with_context(|| format!("Failed to import bonds from calculated results for structure {}", title))?;
+                    let updated_atoms = structure
+                        .atoms
+                        .update_from_continuous_list(&post_content.atoms)
+                        .with_context(|| {
+                            format!(
+                                "Failed to import atoms from calculated result for structure {}",
+                                title
+                            )
+                        })?;
+                    let updated_bonds = post_content
+                        .bonds
+                        .into_iter()
+                        .map(|(a, b, bond)| {
+                            Some((
+                                structure.atoms.from_continuous_index(a)?,
+                                structure.atoms.from_continuous_index(b)?,
+                                bond,
+                            ))
+                        })
+                        .collect::<Option<Vec<_>>>()
+                        .with_context(|| {
+                            format!(
+                                "Failed to import bonds from calculated results for structure {}",
+                                title
+                            )
+                        })?;
                     let mut structure = structure;
                     structure.atoms.migrate(updated_atoms);
                     for (a, b, bond) in updated_bonds {
@@ -390,26 +476,11 @@ impl Runner {
                 }
                 Ok(RunnerOutput::MultiWindow(result))
             }
-            Self::Rename {
-                prefix,
-                suffix,
-                replace,
-                regex,
-            } => Ok(RunnerOutput::SingleWindow(
+            Self::Rename(options) => Ok(RunnerOutput::SingleWindow(
                 current_window
                     .iter()
                     .map(|(title, stack_path)| {
-                        let mut title = String::from(title);
-                        if let Some((from, to)) = replace {
-                            title = title.replace(from, to)
-                        }
-                        title = regex_sed(&title, &regex.join("; "))?;
-                        if let Some(prefix) = prefix {
-                            title = [prefix.to_string(), title].join("_")
-                        }
-                        if let Some(suffix) = suffix {
-                            title = [title, suffix.to_string()].join("_")
-                        }
+                        let title = options.rename(title)?;
                         Ok((title, stack_path.clone()))
                     })
                     .collect::<Result<BTreeMap<_, _>>>()?,
