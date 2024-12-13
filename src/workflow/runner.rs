@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use cached::{proc_macro::cached, UnboundCache};
+use cached::{proc_macro::cached, SizedCache};
 use lmers::utils::fs::copy_skeleton;
 use nalgebra::Vector3;
 use std::fs::File;
@@ -426,8 +426,8 @@ impl Runner {
 /// means there might be something wrong in program or input file, and the workflow
 /// will exit, so the cache of error result will never be accessed in practice.
 #[cached(
-    ty = "UnboundCache<String, Result<SparseMolecule, LayerStorageError>>",
-    create = "{ UnboundCache::new() }",
+    ty = "SizedCache<String, Result<SparseMolecule, LayerStorageError>>",
+    create = "{ SizedCache::with_size(std::env::var(\"LME_CACHE_SIZE\").unwrap_or(\"5000\".to_string()).parse().unwrap()) }",
     convert = r#"{ stack_path.iter().map(|item| item.to_string()).collect::<Vec<_>>().join("/") }"#
 )]
 fn cached_read_stack(
