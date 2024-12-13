@@ -11,4 +11,4 @@
     - layer: RemoveAtoms
       arguments: 
         includes: [water, [H1]]
-- load: ./includes/output.yaml
+# - load: ./includes/output.yaml

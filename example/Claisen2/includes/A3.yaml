@@ -11,4 +11,4 @@
     - layer: RemoveAtoms
       arguments:
         includes: [OMe1, [protonation_A1_H1]]
-- load: ./includes/output.yaml
+# - load: ./includes/output.yaml

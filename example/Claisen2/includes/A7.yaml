@@ -11,4 +11,4 @@
     - layer: RemoveAtoms
       arguments:
         includes: [OMe2, [H1]]
-- load: ./includes/output.yaml
+# - load: ./includes/output.yaml

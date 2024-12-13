@@ -12,3 +12,4 @@
       arguments: 
         includes: [water2, [H2]]
 - load: ./includes/output.yaml
+- load: ./includes/output_to_smiles.yaml

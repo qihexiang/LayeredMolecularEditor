@@ -1,0 +1,15 @@
+- run:
+    runner: Calculation
+    options:
+      working_directory: ./smiles
+      pre_format: 
+        format: mol2
+        openbabel: true
+        export_map: true
+      pre_filename: input.mol2
+      program: smiles.sh
+      args: [input.mol2, ../output.smi]
+      post_format: mol2
+      post_filename: input.mol2
+      stdout: SMILES_OUT
+      stderr: SMILES_ERR

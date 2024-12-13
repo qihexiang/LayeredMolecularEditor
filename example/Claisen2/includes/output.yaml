@@ -1,6 +1,21 @@
+# - run:
+#     runner: Output
+#     options:
+#       target_directory: output
+#       target_format: xyz
+#       openbabel: true
 - run:
-    runner: Output
+    runner: Calculation
     options:
-      target_directory: output
-      target_format: xyz
-      openbabel: true
+      working_directory: ./input_files
+      pre_format: 
+        format: mol2
+        openbabel: true
+        export_map: true
+      pre_filename: input.mol2
+      program: output.sh
+      args: [input.mol2, input.xyz]
+      post_format: mol2
+      post_filename: input.mol2
+      stdout: XYZ_OUT
+      stderr: XYZ_ERR

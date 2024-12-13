@@ -1,0 +1,54 @@
+atoms:
+- element: 1
+  position:
+  - 0.0
+  - 0.0
+  - 0.0
+- element: 6
+  position:
+  - 1.0930000045745654
+  - 0.0
+  - 3.1228611276773455e-13
+- element: 17
+  position:
+  - 1.6509443480766683
+  - 1.6103
+  - -0.4846489549701977
+- element: 17
+  position:
+  - 1.6507502401171308
+  - -0.3853
+  - 1.6369510361502067
+- element: 17
+  position:
+  - 1.65100540937578
+  - -1.2248999999999999
+  - -1.1520489521769086
+bonds:
+- - null
+  - 1.0
+  - null
+  - null
+  - null
+- - 1.0
+  - null
+  - 1.0
+  - 1.0
+  - 1.0
+- - null
+  - 1.0
+  - null
+  - null
+  - null
+- - null
+  - 1.0
+  - null
+  - null
+  - null
+- - null
+  - 1.0
+  - null
+  - null
+  - null
+ids: null
+groups: null
