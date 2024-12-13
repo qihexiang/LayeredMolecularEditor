@@ -86,7 +86,7 @@ fn load_checkpoint() -> Option<WorkflowCheckPoint> {
     let workflow_data_file = File::open("lme_workflow.chk.data")
         .with_context(|| "lme_workflow.chk.skip existed but lme_workflow.chk.data not found")
         .unwrap();
-    let workflow_data: WorkflowData = serde_yaml::from_reader(
+    let workflow_data: WorkflowData = serde_json::from_reader(
         zstd::Decoder::new(workflow_data_file)
             .with_context(|| "Failed to create zstd decompress pipe")
             .unwrap(),
@@ -123,7 +123,7 @@ fn dump_checkpoint(checkpoint: &WorkflowCheckPoint) {
         .write_all(checkpoint.skip.to_string().as_bytes())
         .with_context(|| "Unable to write to lme_workflow.chk.skip")
         .unwrap();
-    serde_yaml::to_writer(
+    serde_json::to_writer(
         zstd::Encoder::new(
             File::create("lme_workflow.chk.data")
                 .with_context(|| "Unable to create lme_workflow.chk.data")
