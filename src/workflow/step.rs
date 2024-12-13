@@ -10,8 +10,8 @@ use super::{
 
 #[derive(Debug, Deserialize)]
 pub struct Step {
-    from: Option<String>,
-    name: Option<String>,
+    pub from: Option<String>,
+    pub name: Option<String>,
     run: Runner,
 }
 

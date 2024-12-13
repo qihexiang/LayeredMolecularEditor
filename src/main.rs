@@ -34,10 +34,19 @@ fn main() {
         workflow_data: workflow_data.clone(),
     };
 
+    let mut last_step_name = String::from("start");
+    let mut last_step_index = 0;
+
     for (index, step) in input.steps.0.into_iter().enumerate().skip(skip) {
+        if let Some(name) = &step.name {
+            last_step_name = name.to_string();
+            last_step_index = index;
+        }
         println!(
-            "Enter step: {}, window size: {}",
+            "Enter step: {}, {} steps after {}, steps after window size: {}",
             index,
+            index - last_step_index,
+            last_step_name,
             workflow_data.current_window.len()
         );
         match step.execute(index, &mut workflow_data) {
