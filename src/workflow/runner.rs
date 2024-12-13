@@ -48,6 +48,8 @@ pub enum Runner {
         pre_format: FormatOptions,
         pre_filename: String,
         #[serde(default)]
+        serial_mode: bool,
+        #[serde(default)]
         skeleton: Option<PathBuf>,
         #[serde(default)]
         stdin: bool,
@@ -95,7 +97,7 @@ impl Runner {
     pub fn execute<'a>(
         &self,
         base: &SparseMolecule,
-        current_window: &BTreeMap<String, Vec<usize>>,
+        current_window: &'a BTreeMap<String, Vec<usize>>,
         layer_storage: &mut LayerStorage,
     ) -> Result<RunnerOutput> {
         match self {
@@ -161,6 +163,7 @@ impl Runner {
             }
             Self::Calculation {
                 working_directory,
+                serial_mode,
                 pre_format,
                 pre_filename,
                 skeleton,
@@ -177,7 +180,7 @@ impl Runner {
                 std::fs::create_dir_all(&working_directory).with_context(|| {
                     format!("Unable to create directory at {:?}", working_directory)
                 })?;
-                let outputs = current_window.par_iter().map(|(title, stack_path)| {
+                let handler = |(title, stack_path): (&'a String, &'a Vec<usize>)| {
                     let working_directory = working_directory.join(title);
                     std::fs::create_dir_all(&working_directory).with_context(|| {
                         format!(
@@ -272,11 +275,21 @@ impl Runner {
                         structure.bonds.set_bond(a, b, Some(bond));
                     }
                     Ok::<_, anyhow::Error>((title, stack_path, structure))
-                });
-                let results = if *ignore_failed {
-                    outputs.filter_map(|item| item.ok()).collect::<Vec<_>>()
+                };
+                let results = if *serial_mode {
+                    let outputs = current_window.iter().map(handler);
+                    if *ignore_failed {
+                        outputs.filter_map(|item| item.ok()).collect::<Vec<_>>()
+                    } else {
+                        outputs.collect::<Result<Vec<_>>>()?
+                    }
                 } else {
-                    outputs.collect::<Result<Vec<_>>>()?
+                    let outputs = current_window.par_iter().map(handler);
+                    if *ignore_failed {
+                        outputs.filter_map(|item| item.ok()).collect::<Vec<_>>()
+                    } else {
+                        outputs.collect::<Result<Vec<_>>>()?
+                    }
                 };
                 let mut window = BTreeMap::new();
                 for (title, stack_path, updated) in results {
