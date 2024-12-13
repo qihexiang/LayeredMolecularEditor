@@ -2,7 +2,7 @@ use std::fs::File;
 
 use clap::Parser;
 use glob::glob;
-use lme::{
+use lmers::{
     layer::{Layer, SelectOne},
     sparse_molecule::SparseMolecule,
 };

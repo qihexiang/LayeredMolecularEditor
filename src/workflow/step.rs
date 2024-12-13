@@ -3,7 +3,7 @@ use std::{collections::BTreeMap, fs::File, path::PathBuf};
 use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
 
-use crate::{
+use super::{
     runner::{Runner, RunnerOutput},
     workflow_data::WorkflowData,
 };
@@ -112,9 +112,16 @@ impl TryFrom<StepLoader> for Steps {
             let result = serde_yaml::from_reader(file)?;
             Ok(result)
         } else if let Some(runner) = value.run {
-            Ok(Steps(vec![Step {from: value.from, name: value.name, run: runner}]))
+            Ok(Steps(vec![Step {
+                from: value.from,
+                name: value.name,
+                run: runner,
+            }]))
         } else {
-            Err(anyhow!(format!("No load or run field is specified in {:#?}", value)))
+            Err(anyhow!(format!(
+                "No load or run field is specified in {:#?}",
+                value
+            )))
         }
     }
 }

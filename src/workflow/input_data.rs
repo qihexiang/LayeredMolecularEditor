@@ -1,9 +1,10 @@
 use std::path::PathBuf;
 
-use lme::sparse_molecule::SparseMolecule;
+use lmers::sparse_molecule::SparseMolecule;
 use serde::{Deserialize, Serialize};
 
-use crate::{step::Steps, workflow_data::WorkflowData};
+use super::step::Steps;
+use super::workflow_data::WorkflowData;
 
 #[derive(Deserialize, Default, Debug)]
 pub struct WorkflowInput {

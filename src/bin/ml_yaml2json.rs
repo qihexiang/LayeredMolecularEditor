@@ -2,7 +2,7 @@ use std::fs::File;
 
 use clap::Parser;
 use glob::glob;
-use lme::sparse_molecule::SparseMolecule;
+use lmers::sparse_molecule::SparseMolecule;
 
 #[derive(Parser)]
 #[command(version, about, long_about = None)]

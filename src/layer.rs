@@ -51,8 +51,8 @@ pub enum Layer {
         a: SelectOne,
         b: SelectOne,
         select: SelectMany,
-        #[serde(default="Vector3::x")]
-        direction: Vector3<f64>
+        #[serde(default = "Vector3::x")]
+        direction: Vector3<f64>,
     },
     Rotation {
         select: SelectMany,
@@ -176,13 +176,23 @@ impl Layer {
                 }
                 .filter(current)?;
             }
-            Self::RotationTo { a, b, select, direction } => {
-                let center_atom   = a.get_atom(&current).ok_or(a.clone())?;
+            Self::RotationTo {
+                a,
+                b,
+                select,
+                direction,
+            } => {
+                let center_atom = a.get_atom(&current).ok_or(a.clone())?;
                 let target_atom = b.get_atom(&current).ok_or(b.clone())?;
                 let current_direction = target_atom.position - center_atom.position;
                 let (axis, angle) = axis_angle_for_b2a(*direction, current_direction);
-                current = Self::Rotation { select: select.clone(), center: a.clone(), axis: *axis, angle }
-                    .filter(current)?;
+                current = Self::Rotation {
+                    select: select.clone(),
+                    center: a.clone(),
+                    axis: *axis,
+                    angle,
+                }
+                .filter(current)?;
             }
             Self::Rotation {
                 select,

@@ -4,6 +4,15 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-
-[workspace]
-members = ["lme", "workflow"]
+lazy_static = "1.5.0"
+nalgebra = { version = "0.33.1", features = ["serde-serialize"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_yaml = "0.9.34"
+anyhow = "1.0.91"
+cached = "0.53.1"
+tempfile = "3.12.0"
+rayon = "1.10.0"
+glob = "0.3.1"
+serde_json = "1.0.128"
+clap = { version = "4.5.18", features = ["derive"] }
+zstd = "0.13.2"

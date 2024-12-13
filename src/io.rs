@@ -3,11 +3,11 @@ use std::{
     io::Read,
 };
 
-use anyhow::{anyhow, Context, Error, Result};
-use lme::{
+use crate::{
     chemistry::{element_num_to_symbol, element_symbol_to_num, Atom3D},
     sparse_molecule::SparseMolecule,
 };
+use anyhow::{anyhow, Context, Error, Result};
 use nalgebra::Point3;
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};

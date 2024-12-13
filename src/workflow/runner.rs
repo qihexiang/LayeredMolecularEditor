@@ -1,12 +1,15 @@
 use anyhow::{anyhow, Context, Result};
 use cached::{proc_macro::cached, UnboundCache};
+use lmers::utils::fs::copy_skeleton;
 use nalgebra::Vector3;
 use std::fs::File;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use std::{collections::BTreeMap, io::Write};
 
-use lme::{
+use lmers::{
+    external::{obabel::obabel, regexsed::regex_sed},
+    io::{BasicIOMolecule, NamespaceMapping},
     layer::{Layer, SelectOne},
     sparse_molecule::SparseMolecule,
 };
@@ -16,10 +19,7 @@ use tempfile::tempdir;
 use glob::glob;
 use rayon::prelude::*;
 
-use crate::io::{BasicIOMolecule, NamespaceMapping};
-use crate::obabel::obabel;
-use crate::regexsed::regex_sed;
-use crate::workflow_data::{LayerStorage, LayerStorageError};
+use super::workflow_data::{LayerStorage, LayerStorageError};
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "runner", content = "options")]
@@ -32,19 +32,6 @@ pub enum Runner {
     Command {
         command: String,
         arguments: Vec<String>,
-    },
-    Output {
-        #[serde(default)]
-        prefix: String,
-        #[serde(default)]
-        suffix: String,
-        #[serde(default)]
-        target_directory: PathBuf,
-        target_format: String,
-        #[serde(default)]
-        openbabel: bool,
-        #[serde(default)]
-        export_map: bool,
     },
     Rename {
         #[serde(default)]
@@ -61,14 +48,16 @@ pub enum Runner {
         pre_format: FormatOptions,
         pre_filename: String,
         #[serde(default)]
+        skeleton: Option<PathBuf>,
+        #[serde(default)]
         stdin: bool,
-        program: String,
+        #[serde(default)]
+        program: Option<String>,
         #[serde(default)]
         args: Vec<String>,
         #[serde(default)]
         envs: BTreeMap<String, String>,
         post_format: String,
-        #[serde(default)]
         post_filename: String,
         #[serde(default)]
         ignore_failed: bool,
@@ -174,6 +163,7 @@ impl Runner {
                 working_directory,
                 pre_format,
                 pre_filename,
+                skeleton,
                 stdin,
                 program,
                 args,
@@ -195,6 +185,9 @@ impl Runner {
                             working_directory, title
                         )
                     })?;
+                    if let Some(skeleton) = skeleton {
+                        copy_skeleton(skeleton, &working_directory)?
+                    }
                     let structure = cached_read_stack(base, layer_storage, stack_path)?;
                     let bonds = structure.bonds.clone().to_continuous_list(&structure.atoms);
                     let atoms = structure.atoms.clone().into();
@@ -233,35 +226,37 @@ impl Runner {
                         let file = File::create(&map_file_path).with_context(|| format!("Unable to create map file at {:?}", map_file_path))?;
                         serde_json::to_writer(file, &content).with_context(|| format!("Unable to serialize map file at {:?}, content: {:#?}", map_file_path, content))?;
                     }
-                    let mut command = Command::new(program);
-                    command.current_dir(&working_directory).args(args).envs(envs);
-                    if *stdin {
-                        let stdin = Stdio::from(File::open(&pre_path).with_context(|| {
-                            format!("Unable to open created pre-file at {:?}", pre_content)
-                        })?);
-                        command.stdin(stdin);
-                    }
-                    if let Some(stdout) = stdout {
-                        let stdout_path = working_directory.join(stdout);
-                        let stdout_file = File::create(&stdout_path).with_context(|| format!("Unable to create stdout file at {:?} for structure titled {}", stdout_path, title))?;
-                        command.stdout(Stdio::from(stdout_file));
-                    } else {
-                        command.stdout(Stdio::null());
-                    }
+                    if let Some(program) = program {
+                        let mut command = Command::new(program);
+                        command.current_dir(&working_directory).args(args).envs(envs);
+                        if *stdin {
+                            let stdin = Stdio::from(File::open(&pre_path).with_context(|| {
+                                format!("Unable to open created pre-file at {:?}", pre_content)
+                            })?);
+                            command.stdin(stdin);
+                        }
+                        if let Some(stdout) = stdout {
+                            let stdout_path = working_directory.join(stdout);
+                            let stdout_file = File::create(&stdout_path).with_context(|| format!("Unable to create stdout file at {:?} for structure titled {}", stdout_path, title))?;
+                            command.stdout(Stdio::from(stdout_file));
+                        } else {
+                            command.stdout(Stdio::null());
+                        }
 
-                    if let Some(stderr) = stderr {
-                        let stderr_path = working_directory.join(stderr);
-                        let stderr_file = File::create(&stderr_path).with_context(|| format!("Unable to create stdout file at {:?} for structure titled {}", stderr_path, title))?;
-                        command.stderr(Stdio::from(stderr_file));
-                    } else {
-                        command.stderr(Stdio::null());
-                    }
+                        if let Some(stderr) = stderr {
+                            let stderr_path = working_directory.join(stderr);
+                            let stderr_file = File::create(&stderr_path).with_context(|| format!("Unable to create stdout file at {:?} for structure titled {}", stderr_path, title))?;
+                            command.stderr(Stdio::from(stderr_file));
+                        } else {
+                            command.stderr(Stdio::null());
+                        }
 
-                    let mut child = command.spawn().with_context(|| format!("Failed to start process for structure {}, process detail: {:#?}", title, command))?;
-                    let result = child.wait().with_context(|| format!("Unable to wait the process handling structure {}, process detail: {:#?}", title, child))?;
+                        let mut child = command.spawn().with_context(|| format!("Failed to start process for structure {}, process detail: {:#?}", title, command))?;
+                        let result = child.wait().with_context(|| format!("Unable to wait the process handling structure {}, process detail: {:#?}", title, child))?;
 
-                    if !result.success() {
-                        Err(anyhow!("Handling process for structure {} failed. Error code {:?}", title, result.code()))?;
+                        if !result.success() {
+                            Err(anyhow!("Handling process for structure {} failed. Error code {:?}", title, result.code()))?;
+                        }
                     }
 
                     let post_path = working_directory.join(post_filename);
@@ -406,68 +401,6 @@ impl Runner {
                     })
                     .collect::<Result<BTreeMap<_, _>>>()?,
             )),
-            Self::Output {
-                prefix,
-                suffix,
-                target_directory,
-                target_format,
-                openbabel,
-                export_map,
-            } => {
-                std::fs::create_dir_all(target_directory).with_context(|| {
-                    format!("Unable to create directory at {:?}", target_directory)
-                })?;
-                current_window
-                    .into_par_iter()
-                    .map(|(title, stack_path)| {
-                        let data = cached_read_stack(base, &layer_storage, &stack_path)?;
-                        let bonds = data.bonds.to_continuous_list(&data.atoms);
-                        let output = BasicIOMolecule::new(
-                            title.to_string(),
-                            data.atoms.into(),
-                            bonds,
-                        );
-                        let mut path = target_directory.clone().join(&output.title);
-                        let content = output.output(&target_format)?;
-                        let content = [prefix.clone(), content, suffix.clone()]
-                            .into_iter()
-                            .filter(|part| part != "")
-                            .collect::<Vec<_>>()
-                            .join("\n");
-                        path.set_extension(target_format.as_str());
-                        let mut file = File::create(&path)
-                            .with_context(|| format!("Unable to create output file at {:?}", path))?;
-                        file.write_all(content.as_bytes())
-                            .with_context(|| format!("Unable to write to output file at {:?}", path))?;
-                        if *openbabel {
-                            let path_for_arguments = path.to_string_lossy().to_string();
-                            let mut command =  Command::new("obabel");
-                            let child = command
-                                .args([format!("{}", path_for_arguments), format!("-O{}", path_for_arguments)])
-                                .stdout(Stdio::piped())
-                                .stderr(Stdio::piped());
-                            let result = child
-                                .spawn()
-                                .with_context(|| format!("Failed to start openbabel process for handling file at {:?}", path_for_arguments))?
-                                .wait_with_output()
-                                .with_context(|| format!("Failed to wait openbabel process for handling file at {:?}", path_for_arguments))?;
-                            if !result.status.success() {
-                                let mut error_log = path.clone();
-                                error_log.set_extension("err_log");
-                                let mut out_log = path.clone();
-                                out_log.set_extension("out_log");
-                                File::create(&error_log).with_context(|| format!("Failed to create error log file at {:?}", error_log))?
-                                    .write_all(&result.stderr).with_context(|| format!("Failed to write error log file at {:?}", error_log))?;
-                                File::create(&out_log).with_context(|| format!("Failed to create output log file at {:?}", out_log))?
-                                    .write_all(&result.stderr).with_context(|| format!("Failed to write output log file at {:?}", out_log))?;
-                                Err(anyhow!("Failed to handle file {:?} with openbabel, exit status {:?}, stderr and stdout logged.", path, result.status.code()))?;
-                            };
-                        };
-                        Ok(())
-                    })
-                    .collect::<Result<Vec<()>>>()?;
-                Ok(RunnerOutput::None)
-            }
         }
     }
 }

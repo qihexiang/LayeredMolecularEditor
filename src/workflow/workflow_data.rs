@@ -1,7 +1,6 @@
 use std::{cell::RefCell, collections::BTreeMap, ops::Range};
 
-use anyhow::Result;
-use lme::{
+use lmers::{
     layer::{Layer, SelectOne},
     sparse_molecule::SparseMolecule,
 };
@@ -63,10 +62,6 @@ impl LayerStorage {
         self.layers.keys().max().copied().unwrap_or_default() + 1
     }
 
-    pub fn layer_ids(&self) -> impl Iterator<Item = &usize> {
-        self.layers.keys()
-    }
-
     pub fn create_layers<I>(&mut self, layers: I) -> Range<usize>
     where
         I: IntoIterator<Item = Layer>,
@@ -80,32 +75,5 @@ impl LayerStorage {
 
     pub fn read_layer(&self, layer_id: &usize) -> Option<&Layer> {
         self.layers.get(layer_id)
-    }
-
-    pub fn write_layer(&mut self, layer_id: &usize) -> Option<&mut Layer> {
-        self.layers.get_mut(layer_id)
-    }
-
-    pub fn remove_layer(&mut self, layer_id: &usize) -> Option<Layer> {
-        self.layers.remove(layer_id)
-    }
-
-    pub fn read_stack(
-        &self,
-        stack_path: &[usize],
-        mut base: SparseMolecule,
-    ) -> Result<SparseMolecule, LayerStorageError> {
-        for layer_id in stack_path {
-            base = self
-                .layers
-                .get(layer_id)
-                .ok_or(LayerStorageError::NoSuchLayer(*layer_id))
-                .and_then(|layer| {
-                    layer
-                        .filter(base)
-                        .map_err(|select| LayerStorageError::FilterError(select))
-                })?;
-        }
-        Ok(base)
     }
 }
