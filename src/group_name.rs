@@ -1,3 +1,4 @@
+use bincode::{Decode, Encode};
 use serde::{Deserialize, Serialize};
 use std::collections::btree_set::IntoIter;
 use std::collections::{BTreeMap, BTreeSet};
@@ -5,7 +6,7 @@ use std::ops::RangeInclusive;
 
 type GroupStorage = BTreeSet<(String, usize)>;
 
-#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq, Eq, Encode, Decode)]
 #[serde(from = "FriendlyGroupName")]
 pub struct GroupName(GroupStorage);
 

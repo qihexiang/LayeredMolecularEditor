@@ -1,10 +1,11 @@
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 
 use lmers::sparse_molecule::SparseMolecule;
 use serde::{Deserialize, Serialize};
 
 use super::step::Steps;
-use super::workflow_data::WorkflowData;
+use super::workflow_data::{LayerStorageConfig, Window};
 
 #[derive(Deserialize, Default, Debug)]
 pub struct WorkflowInput {
@@ -13,6 +14,8 @@ pub struct WorkflowInput {
     #[serde(default)]
     pub no_checkpoint: bool,
     #[serde(default)]
+    pub layer_storage: Option<PathBuf>,
+    #[serde(default)]
     pub base: SparseMolecule,
     pub steps: Steps,
 }
@@ -20,5 +23,8 @@ pub struct WorkflowInput {
 #[derive(Deserialize, Serialize)]
 pub struct WorkflowCheckPoint {
     pub skip: usize,
-    pub workflow_data: WorkflowData,
+    pub base: SparseMolecule,
+    pub layers: LayerStorageConfig,
+    pub windows: BTreeMap<String, Window>,
+    pub current_window: Window,
 }

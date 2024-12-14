@@ -28,7 +28,7 @@ impl Step {
         let generated_stacks = self.run.execute(
             &workflow_data.base,
             &workflow_data.current_window,
-            &mut workflow_data.layers.borrow_mut(),
+            &workflow_data.layers,
         )?;
         match generated_stacks {
             RunnerOutput::SingleWindow(generated_stacks) => {

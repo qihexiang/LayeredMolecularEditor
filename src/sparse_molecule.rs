@@ -5,7 +5,8 @@ use std::{
     path::PathBuf,
 };
 
-use anyhow::{Context, Ok};
+use anyhow::Context;
+use bincode::{Decode, Encode};
 use nalgebra::Isometry3;
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +16,7 @@ use crate::{
     layer::{Layer, SelectMany},
 };
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
 pub struct SparseAtomList(Vec<Option<Atom3D>>);
 
 impl From<Vec<Option<Atom3D>>> for SparseAtomList {
@@ -174,7 +175,7 @@ impl SparseAtomList {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
 pub struct SparseBondMatrix(Vec<Vec<Option<f64>>>);
 
 impl SparseBondMatrix {
@@ -274,7 +275,7 @@ impl<T: Clone + Iterator<Item = ((usize, usize), f64)>> From<T> for SparseBondMa
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
 #[serde(try_from = "SparseMoleculeLoader")]
 pub struct SparseMolecule {
     pub atoms: SparseAtomList,

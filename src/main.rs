@@ -2,14 +2,13 @@ mod workflow;
 
 use std::{
     fs::File,
-    io::{Read, Write},
     path::PathBuf,
 };
 
 use anyhow::Context;
 use workflow::{
     input_data::{WorkflowCheckPoint, WorkflowInput},
-    workflow_data::WorkflowData,
+    workflow_data::{LayerStorage, WorkflowData},
 };
 
 fn main() {
@@ -23,15 +22,33 @@ fn main() {
     set_path(input.binaries).unwrap();
 
     let checkpoint = load_checkpoint();
-    let (skip, mut workflow_data) = if let Some(checkpoint) = checkpoint {
-        (checkpoint.skip, checkpoint.workflow_data)
+    let (skip, mut workflow_data) = if let Some(WorkflowCheckPoint {
+        skip,
+        base,
+        layers,
+        windows,
+        current_window,
+    }) = checkpoint
+    {
+        (
+            skip,
+            WorkflowData {
+                base,
+                layers:LayerStorage::try_from(layers).unwrap(),
+                windows,
+                current_window,
+            },
+        )
     } else {
         (0, WorkflowData::new(input.base))
     };
 
     let mut checkpoint = WorkflowCheckPoint {
         skip,
-        workflow_data: workflow_data.clone(),
+        base: workflow_data.base.clone(),
+        layers: workflow_data.layers.get_config(),
+        windows: workflow_data.windows.clone(),
+        current_window: workflow_data.current_window.clone(),
     };
 
     let mut last_step_name = String::from("start");
@@ -54,7 +71,10 @@ fn main() {
                 if !input.no_checkpoint {
                     checkpoint = WorkflowCheckPoint {
                         skip: index + 1,
-                        workflow_data: workflow_data.clone(),
+                        base: workflow_data.base.clone(),
+                        layers: workflow_data.layers.get_config(),
+                        windows: workflow_data.windows.clone(),
+                        current_window: workflow_data.current_window.clone(),
                     };
                 }
             }
@@ -77,35 +97,16 @@ fn main() {
 }
 
 fn load_checkpoint() -> Option<WorkflowCheckPoint> {
-    let mut skip_file = File::open("lme_workflow.chk.skip").ok()?;
-    let mut skip: String = String::new();
-    skip_file
-        .read_to_string(&mut skip)
-        .with_context(|| "Failed to read lme_workflow.chk.skip thought the file exist")
-        .unwrap();
-    let skip: usize = skip
-        .parse()
-        .with_context(|| {
-            format!(
-                "Unable to parse skip steps in lme_workflow.chk.skip, content in file is: {}",
-                skip
-            )
-        })
-        .unwrap();
-    let workflow_data_file = File::open("lme_workflow.chk.data")
-        .with_context(|| "lme_workflow.chk.skip existed but lme_workflow.chk.data not found")
-        .unwrap();
-    let workflow_data: WorkflowData = serde_json::from_reader(
-        zstd::Decoder::new(workflow_data_file)
-            .with_context(|| "Failed to create zstd decompress pipe")
-            .unwrap(),
+    let workflow_data_file = File::open("lme_workflow.chk.data").ok()?;
+    Some(
+        serde_json::from_reader(
+            zstd::Decoder::new(workflow_data_file)
+                .with_context(|| "Failed to create zstd decompress pipe")
+                .unwrap(),
+        )
+        .with_context(|| "Unable to deserialize lme_workflow.chk.data, it might be broken")
+        .unwrap(),
     )
-    .with_context(|| "Unable to deserialize lme_workflow.chk.data, it might be broken")
-    .unwrap();
-    Some(WorkflowCheckPoint {
-        skip,
-        workflow_data,
-    })
 }
 
 fn set_path(user_specified_paths: Vec<PathBuf>) -> anyhow::Result<()> {
@@ -126,12 +127,6 @@ fn set_path(user_specified_paths: Vec<PathBuf>) -> anyhow::Result<()> {
 }
 
 fn dump_checkpoint(checkpoint: &WorkflowCheckPoint) {
-    File::create("lme_workflow.chk.skip")
-        .with_context(|| "Unable to create lme_workflow.chk.skip")
-        .unwrap()
-        .write_all(checkpoint.skip.to_string().as_bytes())
-        .with_context(|| "Unable to write to lme_workflow.chk.skip")
-        .unwrap();
     serde_json::to_writer(
         zstd::Encoder::new(
             File::create("lme_workflow.chk.data")
@@ -142,7 +137,7 @@ fn dump_checkpoint(checkpoint: &WorkflowCheckPoint) {
         .with_context(|| "Unable to create zstd compress pipe")
         .unwrap()
         .auto_finish(),
-        &checkpoint.workflow_data,
+        checkpoint,
     )
     .with_context(|| "Unable to serialize lme_workflow.chk.data")
     .unwrap()

@@ -3,7 +3,9 @@ use std::{
     ops::RangeInclusive,
 };
 
+use bincode::{Encode, Decode};
 use nalgebra::{Isometry3, Point3, Translation3, Vector3};
+use redb::Value;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -13,7 +15,7 @@ use crate::{
     utils::geometric::axis_angle_for_b2a,
 };
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(tag = "layer", content = "arguments")]
 pub enum Layer {
     Fill(SparseMolecule),
@@ -30,21 +32,25 @@ pub enum Layer {
     SetCenter {
         select: SelectOne,
         #[serde(default)]
+        #[bincode(with_serde)]
         center: Point3<f64>,
     },
     DirectionAlign {
         select: SelectOne,
         #[serde(default = "Vector3::x")]
+        #[bincode(with_serde)]
         direction: Vector3<f64>,
     },
     Translation {
         select: SelectMany,
+        #[bincode(with_serde)]
         vector: Vector3<f64>,
     },
     TranslationTo {
         select: SelectMany,
         target: SelectOne,
         #[serde(default)]
+        #[bincode(with_serde)]
         position: Point3<f64>,
     },
     RotationTo {
@@ -52,16 +58,19 @@ pub enum Layer {
         b: SelectOne,
         select: SelectMany,
         #[serde(default = "Vector3::x")]
+        #[bincode(with_serde)]
         direction: Vector3<f64>,
     },
     Rotation {
         select: SelectMany,
         center: SelectOne,
+        #[bincode(with_serde)]
         axis: Vector3<f64>,
         angle: f64,
     },
     Isometry {
         select: SelectMany,
+        #[bincode(with_serde)]
         isometry: Isometry3<f64>,
     },
     RemoveAtoms(SelectMany),
@@ -245,7 +254,7 @@ impl Layer {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, PartialOrd, Ord, Eq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, PartialOrd, Ord, Eq, Encode, Decode)]
 #[serde(untagged)]
 pub enum SelectOne {
     Index(usize),
@@ -271,7 +280,7 @@ impl SelectOne {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(untagged)]
 pub enum SelectMany {
     All,
@@ -321,5 +330,30 @@ impl SelectMany {
                 selected
             }
         }
+    }
+}
+
+impl Value for Layer {
+    type AsBytes<'a> = Vec<u8>;
+    type SelfType<'a> = Layer;
+
+    fn fixed_width() -> Option<usize> {
+        None
+    }
+
+    fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
+    where
+        Self: 'a {
+        bincode::decode_from_slice(data, bincode::config::standard()).unwrap().0
+    }
+
+    fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
+    where
+        Self: 'b {
+        bincode::encode_to_vec(value, bincode::config::standard()).unwrap()
+    }
+
+    fn type_name() -> redb::TypeName {
+        redb::TypeName::new("layer_table")
     }
 }

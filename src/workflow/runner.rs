@@ -19,7 +19,7 @@ use tempfile::tempdir;
 use glob::glob;
 use rayon::prelude::*;
 
-use super::workflow_data::{LayerStorage, LayerStorageError};
+use super::workflow_data::{LayerStorage, LayerStorageError, Window};
 
 #[derive(Debug, Deserialize)]
 pub struct RenameOptions {
@@ -108,10 +108,10 @@ pub enum Runner {
     CheckPoint,
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub enum RunnerOutput {
-    SingleWindow(BTreeMap<String, Vec<usize>>),
-    MultiWindow(BTreeMap<String, BTreeMap<String, Vec<usize>>>),
+    SingleWindow(Window),
+    MultiWindow(BTreeMap<String, Window>),
     None,
 }
 
@@ -119,13 +119,13 @@ impl Runner {
     pub fn execute<'a>(
         &self,
         base: &SparseMolecule,
-        current_window: &'a BTreeMap<String, Vec<usize>>,
-        layer_storage: &mut LayerStorage,
+        current_window: &'a Window,
+        layer_storage: &LayerStorage,
     ) -> Result<RunnerOutput> {
         match self {
             Self::CheckPoint => Ok(RunnerOutput::None),
             Self::AppendLayers(layers) => {
-                let layer_ids = layer_storage.create_layers(layers.clone());
+                let layer_ids = layer_storage.create_layers(layers);
                 Ok(RunnerOutput::SingleWindow(
                     current_window
                         .into_iter()
@@ -202,7 +202,7 @@ impl Runner {
                 std::fs::create_dir_all(&working_directory).with_context(|| {
                     format!("Unable to create directory at {:?}", working_directory)
                 })?;
-                let handler = |(title, stack_path): (&'a String, &'a Vec<usize>)| {
+                let handler = |(title, stack_path): (&'a String, &'a Vec<u64>)| {
                     let title = if let Some(redirect_to) = redirect_to {
                         redirect_to.rename(title)?
                     } else {
@@ -218,7 +218,7 @@ impl Runner {
                     if let Some(skeleton) = skeleton {
                         copy_skeleton(skeleton, &working_directory)?
                     }
-                    let structure = cached_read_stack(base, layer_storage, stack_path)?;
+                    let structure = cached_read_stack(base, &layer_storage, stack_path)?;
                     let bonds = structure.bonds.clone().to_continuous_list(&structure.atoms);
                     let atoms = structure.atoms.clone().into();
                     let basic_molecule = BasicIOMolecule::new(title.to_string(), atoms, bonds);
@@ -384,7 +384,7 @@ impl Runner {
                 };
                 let mut window = BTreeMap::new();
                 for (title, stack_path, updated) in results {
-                    let updated_layer = layer_storage.create_layers([Layer::Fill(updated)]);
+                    let updated_layer = layer_storage.create_layers(&[Layer::Fill(updated)]);
                     let mut stack_path = stack_path.clone();
                     stack_path.extend(updated_layer);
                     window.insert(title.to_string(), stack_path);
@@ -431,11 +431,12 @@ impl Runner {
                             })?;
                     let mut updated_stacks = BTreeMap::new();
                     for (current_title, stack_path) in current_window {
+                        // println!("{:?}", stack_path);
                         let title = format!("{}_{}", current_title, substituent_name);
                         let mut stack_path = stack_path.clone();
                         for (center, replace) in address {
                             let current_structure =
-                                cached_read_stack(base, layer_storage, &stack_path)?;
+                                cached_read_stack(base, &layer_storage, &stack_path)?;
                             let center_layer = Layer::SetCenter {
                                 select: center.clone(),
                                 center: Default::default(),
@@ -445,7 +446,7 @@ impl Runner {
                                 direction: Vector3::x(),
                             };
                             let align_layers =
-                                layer_storage.create_layers([center_layer, align_layer]);
+                                layer_storage.create_layers(&[center_layer, align_layer]);
                             let mut substituent = substituent.clone();
                             SelectOne::Index(0).set_atom(&mut substituent, None);
                             SelectOne::Index(1).set_atom(&mut substituent, None);
@@ -456,7 +457,7 @@ impl Runner {
                                 .set_atom(&mut substituent, Some(replace_atom))
                                 .with_context(|| {
                                     format!(
-                                        "The replace selector {:?} in {:#?} is not validated",
+                                        "The replace selector {:?} in {:?} is not validated",
                                         replace, substituent
                                     )
                                 })?;
@@ -473,7 +474,7 @@ impl Runner {
                             }
                             stack_path.extend(align_layers);
                             stack_path
-                                .extend(layer_storage.create_layers([Layer::Fill(substituent)]));
+                                .extend(layer_storage.create_layers(&[Layer::Fill(substituent)]));
                         }
                         updated_stacks.insert(title, stack_path);
                     }
@@ -509,11 +510,11 @@ impl Runner {
 fn cached_read_stack(
     base: &SparseMolecule,
     layer_storage: &LayerStorage,
-    stack_path: &[usize],
+    stack_path: &[u64],
 ) -> Result<SparseMolecule, LayerStorageError> {
     if let Some((last, heads)) = stack_path.split_last() {
         let layer = layer_storage
-            .read_layer(last)
+            .read_layer(*last)
             .ok_or(LayerStorageError::NoSuchLayer(*last))?;
         let lower_result = cached_read_stack(base, layer_storage, heads)?;
         layer

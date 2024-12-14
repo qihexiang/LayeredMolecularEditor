@@ -1,3 +1,4 @@
+use bincode::{Decode, Encode};
 use lazy_static::lazy_static;
 use nalgebra::Point3;
 use serde::{Deserialize, Serialize};
@@ -153,8 +154,9 @@ pub fn element_symbol_to_num(input: &str) -> Option<usize> {
     })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize, Encode, Decode)]
 pub struct Atom3D {
     pub element: usize,
+    #[bincode(with_serde)]
     pub position: Point3<f64>,
 }
