@@ -96,8 +96,8 @@ pub enum Runner {
         args: Vec<String>,
         #[serde(default)]
         envs: BTreeMap<String, String>,
-        post_format: String,
-        post_filename: String,
+        #[serde(default)]
+        post_file: Option<(String, String)>,
         #[serde(default)]
         ignore_failed: bool,
         #[serde(default)]
@@ -193,8 +193,7 @@ impl Runner {
                 program,
                 args,
                 envs,
-                post_format,
-                post_filename,
+                post_file,
                 ignore_failed,
                 stdout,
                 stderr,
@@ -230,7 +229,7 @@ impl Runner {
                         pre_content
                     };
                     let mut pre_content = regex_sed(&pre_content, &pre_format.regex.join("; "))?;
-                    
+
                     if pre_format.prefix.len() > 0 {
                         pre_content = format!("{}\n{}", pre_format.prefix, pre_content)
                     }
@@ -319,48 +318,54 @@ impl Runner {
                                 result.code()
                             ))?;
                         }
+                        if let Some((post_format, post_filename)) = post_file {
+                            let post_path = working_directory.join(post_filename);
+                            let post_file = File::open(&post_path).with_context(|| {
+                                format!(
+                                    "Failed to open post-calculation file at {:?} for structure {}",
+                                    post_path, title
+                                )
+                            })?;
+                            let post_content = BasicIOMolecule::input(&post_format, post_file)?;
+                            let updated_atoms = structure
+                                .atoms
+                                .update_from_continuous_list(&post_content.atoms)
+                                .with_context(|| {
+                                    format!(
+                                        "Failed to import atoms from calculated result for structure {}",
+                                        title
+                                    )
+                                })?;
+                            let updated_bonds = post_content
+                                .bonds
+                                .into_iter()
+                                .map(|(a, b, bond)| {
+                                    Some((
+                                        structure.atoms.from_continuous_index(a)?,
+                                        structure.atoms.from_continuous_index(b)?,
+                                        bond,
+                                    ))
+                                })
+                                .collect::<Option<Vec<_>>>()
+                                .with_context(|| {
+                                    format!(
+                                        "Failed to import bonds from calculated results for structure {}",
+                                        title
+                                    )
+                                })?;
+                            let mut structure = SparseMolecule::default();
+                            structure.extend_to(structure.len());
+                            structure.atoms.migrate(updated_atoms);
+                            for (a, b, bond) in updated_bonds {
+                                structure.bonds.set_bond(a, b, Some(bond));
+                            }
+                            Ok::<_, anyhow::Error>((title, stack_path, structure))
+                        } else {
+                            Ok((title, stack_path, SparseMolecule::default()))
+                        }
+                    } else {
+                        Ok((title, stack_path, SparseMolecule::default()))
                     }
-
-                    let post_path = working_directory.join(post_filename);
-                    let post_file = File::open(&post_path).with_context(|| {
-                        format!(
-                            "Failed to open post-calculation file at {:?} for structure {}",
-                            post_path, title
-                        )
-                    })?;
-                    let post_content = BasicIOMolecule::input(&post_format, post_file)?;
-                    let updated_atoms = structure
-                        .atoms
-                        .update_from_continuous_list(&post_content.atoms)
-                        .with_context(|| {
-                            format!(
-                                "Failed to import atoms from calculated result for structure {}",
-                                title
-                            )
-                        })?;
-                    let updated_bonds = post_content
-                        .bonds
-                        .into_iter()
-                        .map(|(a, b, bond)| {
-                            Some((
-                                structure.atoms.from_continuous_index(a)?,
-                                structure.atoms.from_continuous_index(b)?,
-                                bond,
-                            ))
-                        })
-                        .collect::<Option<Vec<_>>>()
-                        .with_context(|| {
-                            format!(
-                                "Failed to import bonds from calculated results for structure {}",
-                                title
-                            )
-                        })?;
-                    let mut structure = structure;
-                    structure.atoms.migrate(updated_atoms);
-                    for (a, b, bond) in updated_bonds {
-                        structure.bonds.set_bond(a, b, Some(bond));
-                    }
-                    Ok::<_, anyhow::Error>((title, stack_path, structure))
                 };
                 let results = if *serial_mode {
                     let outputs = current_window.iter().map(handler);
