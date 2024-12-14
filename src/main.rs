@@ -40,7 +40,7 @@ fn main() {
             },
         )
     } else {
-        (0, WorkflowData::new(input.base))
+        (0, WorkflowData::new(input.base, input.layer_storage.unwrap_or(PathBuf::from(".layer_storage.db"))))
     };
 
     let mut checkpoint = WorkflowCheckPoint {

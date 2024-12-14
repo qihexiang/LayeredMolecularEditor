@@ -2,7 +2,6 @@ use lmers::{
     layer::{Layer, SelectOne},
     sparse_molecule::SparseMolecule,
 };
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use redb::{Database, ReadableTableMetadata, TableDefinition};
 use std::{collections::BTreeMap, ops::Range, path::PathBuf};
 
@@ -20,54 +19,35 @@ pub struct WorkflowData {
     pub current_window: Window,
 }
 
-impl Default for WorkflowData {
-    fn default() -> Self {
-        let base = Default::default();
-        let layers = Default::default();
-        let current_window = BTreeMap::from([("".to_string(), vec![])]);
-        let windows = BTreeMap::from([("base".to_string(), current_window.clone())]);
-        Self {
-            base,
-            layers,
-            windows,
-            current_window,
-        }
-    }
-}
-
 impl WorkflowData {
-    pub fn new(base: SparseMolecule) -> Self {
-        let mut workflow_data = Self::default();
-        workflow_data.base = base;
-        workflow_data
+    pub fn new(base: SparseMolecule, db_path: PathBuf) -> Self {
+        Self {
+            base, layers: LayerStorage::new(db_path), windows: BTreeMap::new(), current_window: BTreeMap::from([("".to_string(), vec![])])
+        }
     }
 }
 
 #[derive(Deserialize, Serialize)]
 #[serde(try_from = "LayerStorageConfig")]
 pub struct LayerStorage {
-    base: SparseMolecule,
     db_path: PathBuf,
     #[serde(skip)]
     db: Database,
 }
 
-impl Default for LayerStorage {
-    fn default() -> Self {
+impl LayerStorage {
+    pub fn new( db_path: PathBuf) -> Self {
+        let db = Database::create(&db_path)
+        .or(Database::open(&db_path))
+        .unwrap();
         Self {
-            base: Default::default(),
-            db_path: PathBuf::from(".layer_storage.db"),
-            db: Database::create(".layer_storage.db")
-                .or(Database::open(".layer_storage.db"))
-                .unwrap(),
+            db_path,
+            db
         }
     }
-}
 
-impl LayerStorage {
     pub fn get_config(&self) -> LayerStorageConfig {
         LayerStorageConfig {
-            base: self.base.clone(),
             db_path: self.db_path.clone(),
         }
     }
@@ -75,7 +55,6 @@ impl LayerStorage {
 
 #[derive(Deserialize, Serialize)]
 pub struct LayerStorageConfig {
-    base: SparseMolecule,
     db_path: PathBuf,
 }
 
@@ -84,7 +63,6 @@ impl TryFrom<LayerStorageConfig> for LayerStorage {
     fn try_from(value: LayerStorageConfig) -> Result<Self, Self::Error> {
         let db = Database::create(&value.db_path).or(Database::open(&value.db_path))?;
         Ok(Self {
-            base: value.base,
             db_path: value.db_path,
             db,
         })
