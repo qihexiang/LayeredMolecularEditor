@@ -382,14 +382,18 @@ impl Runner {
                         outputs.collect::<Result<Vec<_>>>()?
                     }
                 };
-                let mut window = BTreeMap::new();
-                for (title, stack_path, updated) in results {
-                    let updated_layer = layer_storage.create_layers(&[Layer::Fill(updated)]);
-                    let mut stack_path = stack_path.clone();
-                    stack_path.extend(updated_layer);
-                    window.insert(title.to_string(), stack_path);
+                if post_file.is_some() {
+                    let mut window = BTreeMap::new();
+                    for (title, stack_path, updated) in results {
+                        let updated_layer = layer_storage.create_layers(&[Layer::Fill(updated)]);
+                        let mut stack_path = stack_path.clone();
+                        stack_path.extend(updated_layer);
+                        window.insert(title.to_string(), stack_path);
+                    }
+                    Ok(RunnerOutput::SingleWindow(window))
+                } else {
+                    Ok(RunnerOutput::None)
                 }
-                Ok(RunnerOutput::SingleWindow(window))
             }
             Self::Substituent {
                 address,
