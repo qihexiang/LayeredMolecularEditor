@@ -159,4 +159,6 @@ pub struct Atom3D {
     pub element: usize,
     #[bincode(with_serde)]
     pub position: Point3<f64>,
+    #[serde(default)]
+    pub formal_charge: f64
 }

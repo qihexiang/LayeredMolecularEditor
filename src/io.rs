@@ -149,7 +149,7 @@ impl BasicIOMolecule {
                     .parse()
                     .with_context(|| format!("Unable to parse z token in line {line}"))?;
                 let position = Point3::new(x, y, z);
-                Ok(Atom3D { element, position })
+                Ok(Atom3D { element, position, formal_charge: 0. })
             })
             .collect::<Result<Vec<_>>>()?;
         if amount != atoms.len() {
@@ -221,9 +221,13 @@ impl BasicIOMolecule {
                 let element = element_symbol_to_num(element).with_context(|| {
                     format!("Unable to convert {} to a element number", element)
                 })?;
+                let _ = line_items.next().with_context(|| format!("Residue ID not found in line {line}"))?;
+                let _ = line_items.next().with_context(|| format!("Residue Name not found in line {line}"))?;
+                let formal_charge = line_items.next().with_context(|| format!("Residue ID not found in line {line}"))?.parse()?;
                 Ok(Atom3D {
                     element,
                     position: Point3::new(x, y, z),
+                    formal_charge
                 })
             })
             .collect::<Result<Vec<_>>>()?;
@@ -296,13 +300,16 @@ impl BasicIOMolecule {
                 let element_symbol = element_num_to_symbol(&atom.element)
                     .with_context(|| format!("Invalid element number found {}", atom.element))?;
                 Ok(format!(
-                    "{} {} {} {} {} {}",
+                    "{} {} {} {} {} {} {} {} {}",
                     index,
                     element_symbol,
                     atom.position.x,
                     atom.position.y,
                     atom.position.z,
-                    element_symbol
+                    element_symbol,
+                    "1",
+                    "UNL1",
+                    atom.formal_charge
                 ))
             })
             .collect::<Result<Vec<_>, Error>>()?;
