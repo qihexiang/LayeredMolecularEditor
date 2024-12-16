@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Serialize, Deserialize)]
 pub struct NamespaceMapping {
     pub len: usize,
+    pub indexes: BTreeMap<usize, usize>,
     pub ids: BTreeMap<String, usize>,
     pub groups: BTreeMap<String, BTreeSet<usize>>,
 }
@@ -52,6 +53,7 @@ impl From<SparseMolecule> for NamespaceMapping {
             .unwrap_or_default();
         Self {
             len: atoms_mapping.len(),
+            indexes: atoms_mapping,
             ids,
             groups,
         }
