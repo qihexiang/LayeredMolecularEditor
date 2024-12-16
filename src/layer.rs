@@ -21,10 +21,8 @@ pub enum Layer {
     Fill(SparseMolecule),
     Insert(usize, SparseMolecule),
     Append(String, SparseMolecule),
-    SetAtom {
-        target: SelectOne,
-        atom: Option<Atom3D>,
-    },
+    SetAtom(Vec<(SelectOne, Option<Atom3D>)>),
+    UpdateFormalCharge(Vec<(SelectOne, f64)>),
     AppendAtoms(Vec<Atom3D>),
     SetBond(Vec<(SelectOne, SelectOne, f64)>),
     IdMap(BTreeMap<String, usize>),
@@ -114,8 +112,17 @@ impl Layer {
                     current.bonds.set_bond(a, b, Some(*bond));
                 }
             }
-            Self::SetAtom { target, atom } => {
-                target.set_atom(&mut current, atom.clone());
+            Self::SetAtom(updates) => {
+                for (select, atom) in updates {
+                    select.set_atom(&mut current, atom.clone());
+                }
+            },
+            Self::UpdateFormalCharge(updates) => {
+                for (select, charge) in updates {
+                    let mut current_atom = select.get_atom(&current).ok_or(select.clone())?;
+                    current_atom.formal_charge = *charge;
+                    select.set_atom(&mut current, Some(current_atom));
+                }
             }
             Self::AppendAtoms(atoms) => {
                 current.atoms.set_atoms(
