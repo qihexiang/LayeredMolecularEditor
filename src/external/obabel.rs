@@ -3,9 +3,14 @@ use std::{
     process::{Command, Stdio},
 };
 
-use anyhow::{Context, Ok, Result};
+use anyhow::{anyhow, Context, Ok, Result};
 
-pub fn obabel(input: &str, input_format: &str, output_format: &str) -> Result<String> {
+pub fn obabel(
+    input: &str,
+    input_format: &str,
+    output_format: &str,
+    error_output: bool,
+) -> Result<String> {
     let mut command = Command::new("obabel")
         .args([
             format!("-i{}", input_format),
@@ -13,10 +18,18 @@ pub fn obabel(input: &str, input_format: &str, output_format: &str) -> Result<St
         ])
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::null())
+        .stderr(if error_output {
+            Stdio::inherit()
+        } else {
+            Stdio::null()
+        })
         .spawn()
         .with_context(|| "Failed to start openbabel")?;
     command.stdin.take().unwrap().write_all(input.as_bytes())?;
     let output = command.wait_with_output()?;
-    Ok(String::from_utf8(output.stdout)?)
+    if output.status.success() {
+        Ok(String::from_utf8(output.stdout)?)
+    } else {
+        Err(anyhow!("Failed to convert with openbabel, {:?}", output.status.code()))
+    }
 }

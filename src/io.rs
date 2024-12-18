@@ -5,7 +5,7 @@ use std::{
 
 use crate::{
     chemistry::{element_num_to_symbol, element_symbol_to_num, Atom3D},
-    sparse_molecule::SparseMolecule,
+    sparse_molecule::{SparseAtomList, SparseBondMatrix, SparseMolecule},
 };
 use anyhow::{anyhow, Context, Error, Result};
 use nalgebra::Point3;
@@ -64,6 +64,17 @@ pub struct BasicIOMolecule {
     pub atoms: Vec<Atom3D>,
     pub bonds: Vec<(usize, usize, f64)>,
     pub title: String,
+}
+
+impl From<BasicIOMolecule> for SparseMolecule {
+    fn from(value: BasicIOMolecule) -> Self {
+        let atoms = SparseAtomList::from(value.atoms);
+        let mut bonds = SparseBondMatrix::new(atoms.len());
+        for (a, b, bond) in value.bonds {
+            bonds.set_bond(a, b, Some(bond));
+        }
+        Self { atoms, bonds, ids: None, groups: None }
+    }
 }
 
 impl From<(SparseMolecule, String)> for BasicIOMolecule {
