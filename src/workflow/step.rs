@@ -1,7 +1,8 @@
-use std::{collections::BTreeMap, fs::File, path::PathBuf};
+use std::{collections::BTreeMap, env::current_dir, fs::File, io::Read};
 
 use anyhow::{anyhow, Context, Result};
 use serde::Deserialize;
+use url::Url;
 
 use super::{
     runner::{Runner, RunnerOutput},
@@ -85,32 +86,47 @@ struct StepLoader {
     from: Option<String>,
     name: Option<String>,
     run: Option<Runner>,
-    load: Option<PathBuf>,
+    load: Option<String>,
 }
 
 impl TryFrom<StepLoader> for Steps {
     type Error = anyhow::Error;
     fn try_from(value: StepLoader) -> Result<Self> {
         if let Some(filepath) = value.load {
-            let current_directory = std::env::current_dir().with_context(|| {
-                format!(
-                    "Unable to get current working directory for loading {:?}",
-                    filepath
-                )
-            })?;
-            println!(
-                "Loading {:?} from working directory {:?}",
-                filepath, current_directory
-            );
-
-            let file = File::open(&filepath).with_context(|| {
-                format!(
-                    "Failed to open target file {:?} in working directory {:?}",
-                    filepath, current_directory
-                )
-            })?;
-            let result = serde_yaml::from_reader(file)?;
-            Ok(result)
+            let url = if filepath.starts_with("/") {
+                Url::parse(&format!("file:{}", filepath))?
+            } else {
+                let url = Url::from_directory_path(current_dir()?)
+                    .map_err(|_| anyhow!("Unable to get current working direcotry"))?;
+                url.join(&filepath)?
+            };
+            let filepath = url
+                .to_file_path()
+                .map_err(|_| anyhow!("Unable to convert URL {} to filepath", url))?;
+            if filepath
+                .file_stem()
+                .with_context(|| anyhow!("Filename with no file stem is not allowed now"))?
+                .to_string_lossy()
+                .to_string()
+                .ends_with("template")
+            {
+                println!("Loading template {:?} with query string: {:?}", filepath, url.query());
+                let mut file = File::open(&filepath)
+                    .with_context(|| format!("Failed to open target file {:?}", filepath))?;
+                let mut content = String::new();
+                file.read_to_string(&mut content)
+                    .with_context(|| anyhow!("Failed to read file {:?}", &filepath))?;
+                for (k, v) in url.query_pairs() {
+                    let k = format!("{{{{ {} }}}}", k);
+                    content = content.replace(&k, &v);
+                }
+                Ok(serde_yaml::from_str(&content)?)
+            } else {
+                println!("Loading {:?}", filepath);
+                let file = File::open(&filepath)
+                    .with_context(|| format!("Failed to open target file {:?}", filepath))?;
+                Ok(serde_yaml::from_reader(file)?)
+            }
         } else if let Some(runner) = value.run {
             Ok(Steps(vec![Step {
                 from: value.from,
