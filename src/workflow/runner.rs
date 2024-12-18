@@ -216,7 +216,7 @@ impl Runner {
                         )
                     })?;
                     if let Some(skeleton) = skeleton {
-                        copy_skeleton(skeleton, &working_directory)?
+                        copy_skeleton(skeleton, &working_directory).with_context(|| format!("Unable to copy skeleton folder from {:?} to {:?}", skeleton, working_directory))?
                     }
                     let structure = cached_read_stack(base, &layer_storage, stack_path)?;
                     let bonds = structure.bonds.clone().to_continuous_list(&structure.atoms);
