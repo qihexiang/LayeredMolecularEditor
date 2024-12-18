@@ -1,6 +1,8 @@
 use std::{collections::BTreeMap, env::current_dir, fs::File, io::Read};
 
 use anyhow::{anyhow, Context, Result};
+use lazy_static::lazy_static;
+use regex::Regex;
 use serde::Deserialize;
 use url::Url;
 
@@ -89,6 +91,10 @@ struct StepLoader {
     load: Option<String>,
 }
 
+lazy_static! {
+    static ref YAML_VARIABLE_RE: Regex = Regex::new(r"\{\{ __.* \}\}").unwrap();
+}
+
 impl TryFrom<StepLoader> for Steps {
     type Error = anyhow::Error;
     fn try_from(value: StepLoader) -> Result<Self> {
@@ -110,7 +116,11 @@ impl TryFrom<StepLoader> for Steps {
                 .to_string()
                 .ends_with("template")
             {
-                println!("Loading template {:?} with query string: {:?}", filepath, url.query());
+                println!(
+                    "Loading template {:?} with query string: {:?}",
+                    filepath,
+                    url.query()
+                );
                 let mut file = File::open(&filepath)
                     .with_context(|| format!("Failed to open target file {:?}", filepath))?;
                 let mut content = String::new();
@@ -120,6 +130,7 @@ impl TryFrom<StepLoader> for Steps {
                     let k = format!("{{{{ {} }}}}", k);
                     content = content.replace(&k, &v);
                 }
+                let content = YAML_VARIABLE_RE.replace_all(&content, "null");
                 Ok(serde_yaml::from_str(&content)?)
             } else {
                 println!("Loading {:?}", filepath);

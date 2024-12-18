@@ -19,3 +19,4 @@ zstd = "0.13.2"
 redb = "2.3.0"
 bincode = {version = "2.0.0-rc.3", features = ["serde"]}
 url = "2.5.4"
+regex = "1.11.1"
