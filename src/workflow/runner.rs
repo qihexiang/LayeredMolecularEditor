@@ -224,7 +224,7 @@ impl Runner {
                     let basic_molecule = BasicIOMolecule::new(title.to_string(), atoms, bonds);
                     let pre_content = basic_molecule.output(&pre_format.format)?;
                     let pre_content = if pre_format.openbabel {
-                        obabel(&pre_content, &pre_format.format, &pre_format.format, false)?
+                        obabel(&pre_content, &pre_format.format, &pre_format.format, false, false)?
                     } else {
                         pre_content
                     };

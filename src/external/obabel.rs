@@ -10,12 +10,22 @@ pub fn obabel(
     input_format: &str,
     output_format: &str,
     error_output: bool,
+    gen3d: bool
 ) -> Result<String> {
-    let mut command = Command::new("obabel")
-        .args([
+    let args = if gen3d {
+        vec![
             format!("-i{}", input_format),
             format!("-o{}", output_format),
-        ])
+            "--gen3d".to_string()
+        ]
+    } else {
+        vec![
+            format!("-i{}", input_format),
+            format!("-o{}", output_format),
+        ]
+    };
+    let mut command = Command::new("obabel")
+        .args(args)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(if error_output {

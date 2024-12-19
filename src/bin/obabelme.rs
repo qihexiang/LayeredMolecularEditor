@@ -17,8 +17,10 @@ enum Operation {
         /// Input file format
         #[clap(short='I')]
         input_format: String,
+        #[clap(short='a')]
+        gen3d: bool,
         /// Prepare generate file as substituents
-        #[clap(short)]
+        #[clap(short='s')]
         as_substituent: bool
     },
     /// Export LME files to common formats
@@ -35,7 +37,7 @@ enum Operation {
 impl Operation {
     fn operate(self) -> Result<()> {
         match self {
-            Self::Import { input_filepath, input_format, as_substituent } => {
+            Self::Import { input_filepath, input_format, gen3d, as_substituent } => {
                 let matched_paths = glob(&input_filepath).with_context(|| format!("Invalid file match pattern: {}", input_filepath))?;
                 let set_center_layer = Layer::SetCenter {
                     select: SelectOne::Index(0),
@@ -52,7 +54,7 @@ impl Operation {
                         File::open(&input).with_context(|| format!("Failed to open matched file {:?}", input))?
                             .read_to_string(&mut input_content)
                             .with_context(|| format!("Failed to read matched file {:?}", input))?;
-                        let mol2 = obabel(&input_content, &input_format, "mol2", true)?;
+                        let mol2 = obabel(&input_content, &input_format, "mol2", true, gen3d)?;
                         let mut molecule = SparseMolecule::from(BasicIOMolecule::input("mol2", Cursor::new(mol2))?);
                         if as_substituent {
                             molecule = align_layer.filter(set_center_layer.filter(molecule).map_err(|_| anyhow!("Substituent require at least 2 atoms"))?).map_err(|_| anyhow!("Substituent require at least 2 atoms"))?;
@@ -71,7 +73,7 @@ impl Operation {
                         let mut input = entry.with_context(|| format!("Unable to read path matched"))?;
                         let structure: SparseMolecule = serde_yaml::from_reader(File::open(&input).with_context(|| format!("Failed to open matched file {:?}", input))?)?;
                         let mol2 = BasicIOMolecule::from((structure, input.file_stem().map(|stem| stem.to_string_lossy().to_string()).unwrap_or_default())).output("mol2").with_context(|| format!("Failed to convert to intermediate format {:?}", input))?;
-                        let output = obabel(&mol2, "mol2", &output_format, true)?;
+                        let output = obabel(&mol2, "mol2", &output_format, true, false)?;
                         input.set_extension(output_format.clone());
                         File::create(&input).with_context(|| format!("Failed to create output file {:?}", input))?
                             .write_all(output.as_bytes())
