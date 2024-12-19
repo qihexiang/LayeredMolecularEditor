@@ -10,7 +10,7 @@ class LME_Mapping:
     def load_from_json(filepath: str) -> Self:
         with open(filepath) as f:
             json_data = json.load(f)
-        LME_Mapping(json_data["len"], json_data["indexes"], json_data["ids"], json_data["groups"])
+        return LME_Mapping(json_data["len"], json_data["indexes"], json_data["ids"], json_data["groups"])
 
     def __init__(self, len, indexes, ids, groups):
         self.len = len
