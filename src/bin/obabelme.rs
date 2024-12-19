@@ -1,7 +1,7 @@
 use std::{fs::File, io::{Cursor, Read, Write}};
 
 use clap::Parser;
-use lmers::{external::obabel::obabel, io::BasicIOMolecule, layer::{Layer, SelectOne}, sparse_molecule::SparseMolecule};
+use lmers::{external::obabel::obabel, io::BasicIOMolecule, layer::{Layer, SelectOne}, sparse_molecule::SparseMolecule, utils::sterimol::{self, RadiisTable}};
 use nalgebra::Vector3;
 use rayon::prelude::*;
 use glob::glob;
@@ -17,11 +17,13 @@ enum Operation {
         /// Input file format
         #[clap(short='I')]
         input_format: String,
-        #[clap(short='a')]
+        #[clap(short='g')]
         gen3d: bool,
         /// Prepare generate file as substituents
         #[clap(short='s')]
-        as_substituent: bool
+        as_substituent: bool,
+        #[clap(short='S')]
+        sterimol: Option<String>
     },
     /// Export LME files to common formats
     Export {
@@ -37,7 +39,7 @@ enum Operation {
 impl Operation {
     fn operate(self) -> Result<()> {
         match self {
-            Self::Import { input_filepath, input_format, gen3d, as_substituent } => {
+            Self::Import { input_filepath, input_format, gen3d, as_substituent, sterimol } => {
                 let matched_paths = glob(&input_filepath).with_context(|| format!("Invalid file match pattern: {}", input_filepath))?;
                 let set_center_layer = Layer::SetCenter {
                     select: SelectOne::Index(0),
@@ -46,6 +48,13 @@ impl Operation {
                 let align_layer = Layer::DirectionAlign {
                     select: SelectOne::Index(1),
                     direction: Vector3::x(),
+                };
+                let radiis_table = if let Some(radiis_path) = sterimol {
+                    let file = File::open(&radiis_path).with_context(|| format!("Failed to open speicified radiis table {}", radiis_path))?;
+                    let table: RadiisTable = serde_json::from_reader(file).with_context(|| "Unable to parse given radiis table")?;
+                    Some(table)
+                } else {
+                    None
                 };
                 let _ = matched_paths.par_bridge()
                     .map(|entry| {
@@ -61,6 +70,13 @@ impl Operation {
                         }
                         input.set_extension("lme");
                         serde_json::to_writer(File::create(&input).with_context(|| format!("Unable to create output file at {:?}", input))?, &molecule)?;
+                        if let Some(radiis_table) = &radiis_table {
+                            let (l, b1, b5) = sterimol::sterimol(molecule.atoms.into(), radiis_table)?;
+                            input.set_extension("sterimol");
+                            File::create(&input).with_context(|| format!("Unable to create sterimol file at {:?}", input))?
+                                .write_all(format!("{l},{b1},{b5}").as_bytes())
+                                .with_context(|| format!("Unable to write sterimol file at {:?}", input))?;
+                        }
                         Ok(())
                     })
                     .collect::<Result<Vec<()>>>()?;
