@@ -1,7 +1,7 @@
 use std::{fs::File, io::{Cursor, Read, Write}};
 
 use clap::Parser;
-use lmers::{external::obabel::obabel, io::BasicIOMolecule, layer::{Layer, SelectOne}, sparse_molecule::SparseMolecule, utils::sterimol::{self, RadiisTable}};
+use lmers::{external::obabel::obabel, io::BasicIOMolecule, layer::{Layer, SelectOne}, sparse_molecule::SparseMolecule, utils::sterimol::{self, auto_connect_bonds, RadiisTable}};
 use nalgebra::Vector3;
 use rayon::prelude::*;
 use glob::glob;
@@ -71,7 +71,14 @@ impl Operation {
                         input.set_extension("lme");
                         serde_json::to_writer(File::create(&input).with_context(|| format!("Unable to create output file at {:?}", input))?, &molecule)?;
                         if let Some(radiis_table) = &radiis_table {
-                            let (l, b1, b5) = sterimol::sterimol(molecule.atoms.into(), radiis_table)?;
+                            let bonds = molecule.bonds.to_continuous_list(&molecule.atoms);
+                            let atoms = molecule.atoms.into();
+                            let bonds = if bonds.len() == 0 {
+                                auto_connect_bonds(&atoms, radiis_table)?
+                            } else {
+                                bonds
+                            };
+                            let (l, b1, b5) = sterimol::sterimol(atoms, bonds, radiis_table)?;
                             input.set_extension("sterimol");
                             File::create(&input).with_context(|| format!("Unable to create sterimol file at {:?}", input))?
                                 .write_all(format!("{l},{b1},{b5}").as_bytes())
