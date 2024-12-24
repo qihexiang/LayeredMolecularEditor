@@ -131,13 +131,16 @@ pub fn sterimol(molecular_graph: &MolecularGraph, table: &RadiisTable) -> Result
                     .into_iter()
                     .map(|(_, atom)| atom)
                     .map(|atom| {
-                        Ok((atom.position - b.position).norm()
-                            + table
-                                .get(atom.element)
-                                .with_context(|| {
-                                    format!("Failed to read radiis of element {}", atom.element)
-                                })?
-                                .value)
+                        let c_radii = table
+                            .get(atom.element)
+                            .with_context(|| {
+                                format!("Failed to read radiis of element {}", atom.element)
+                            })?
+                            .value;
+                        let bc = atom.position - b.position;
+                        let projection = bc.dot(&axis) * axis;
+                        let distance = (bc - projection).norm();
+                        Ok(distance + c_radii)
                     })
                     .collect::<Result<Vec<_>>>()?
                     .into_iter()
