@@ -1,5 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use cached::{proc_macro::cached, SizedCache};
+use lmers::layer::SelectMany;
 use lmers::utils::fs::copy_skeleton;
 use nalgebra::Vector3;
 use std::fs::File;
@@ -70,7 +71,7 @@ pub struct FormatOptions {
 pub enum Runner {
     AppendLayers(Vec<Layer>),
     Substituent {
-        address: Vec<(SelectOne, SelectOne)>,
+        address: BTreeMap<String, (SelectOne, SelectOne)>,
         file_pattern: String,
     },
     Command {
@@ -438,7 +439,7 @@ impl Runner {
                         // println!("{:?}", stack_path);
                         let title = format!("{}_{}", current_title, substituent_name);
                         let mut stack_path = stack_path.clone();
-                        for (center, replace) in address {
+                        for (g_name, (center, replace)) in address {
                             let current_structure =
                                 cached_read_stack(base, &layer_storage, &stack_path)?;
                             let center_layer = Layer::SetCenter {
@@ -454,6 +455,7 @@ impl Runner {
                             let mut substituent = substituent.clone();
                             SelectOne::Index(0).set_atom(&mut substituent, None);
                             SelectOne::Index(1).set_atom(&mut substituent, None);
+                            let substituent = Layer::GroupMap(vec![(g_name.to_string(), SelectMany::All)]).filter(substituent).expect("SelectOne error will never happend at substituent rename");
                             let offset = current_structure.atoms.len();
                             let mut substituent = substituent.offset(offset);
                             substituent.ids = current_structure.ids.clone();
