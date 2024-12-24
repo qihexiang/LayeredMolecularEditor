@@ -1,7 +1,7 @@
 use std::{fs::File, io::{Cursor, Read, Write}};
 
 use clap::Parser;
-use lmers::{external::obabel::obabel, io::BasicIOMolecule, layer::{Layer, SelectOne}, sparse_molecule::SparseMolecule, utils::sterimol::{self, auto_connect_bonds, RadiisTable}};
+use lmers::{external::obabel::obabel, io::BasicIOMolecule, layer::{Layer, SelectOne}, sparse_molecule::SparseMolecule, utils::sterimol::{self, auto_connect_bonds, get_molecular_graph, RadiisTable}};
 use nalgebra::Vector3;
 use rayon::prelude::*;
 use glob::glob;
@@ -78,10 +78,12 @@ impl Operation {
                             } else {
                                 bonds
                             };
-                            let (l, b1, b5) = sterimol::sterimol(atoms, bonds, radiis_table)?;
+                            let molecular_graph = get_molecular_graph(&atoms, &bonds);
+                            let (l, b1, b5) = sterimol::sterimol(&molecular_graph, radiis_table)?;
+                            let tca = sterimol::tolman_cone_angle(&molecular_graph)?;
                             input.set_extension("sterimol");
                             File::create(&input).with_context(|| format!("Unable to create sterimol file at {:?}", input))?
-                                .write_all(format!("{l},{b1},{b5}").as_bytes())
+                                .write_all(format!("{l},{b1},{b5},{tca}").as_bytes())
                                 .with_context(|| format!("Unable to write sterimol file at {:?}", input))?;
                         }
                         Ok(())

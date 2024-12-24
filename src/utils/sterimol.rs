@@ -78,18 +78,23 @@ pub fn molecular_graph_walk(
     }
 }
 
-pub type RadiisTable = Vec<RadiisItem>;
+type MolecularGraph = StableUnGraph<Atom3D, f64, usize>;
 
-pub fn sterimol(
-    atoms: Vec<Atom3D>,
-    bonds: Vec<(usize, usize, f64)>,
-    table: &RadiisTable,
-) -> Result<(f64, f64, f64)> {
+pub fn get_molecular_graph(
+    atoms: &Vec<Atom3D>,
+    bonds: &Vec<(usize, usize, f64)>,
+) -> MolecularGraph {
     let mut molecular_graph: StableUnGraph<Atom3D, f64, usize> = StableUnGraph::default();
     for atom in atoms {
-        molecular_graph.add_node(atom);
+        molecular_graph.add_node(*atom);
     }
     molecular_graph.extend_with_edges(bonds);
+    molecular_graph
+}
+
+pub type RadiisTable = Vec<RadiisItem>;
+
+pub fn sterimol(molecular_graph: &MolecularGraph, table: &RadiisTable) -> Result<(f64, f64, f64)> {
     let a = molecular_graph
         .node_weight(0.into())
         .with_context(|| "First atom of substituent group not found, require at least 2 atoms")?;
@@ -150,33 +155,46 @@ pub fn sterimol(
         .into_iter()
         .reduce(|acc, next| if acc > next { acc } else { next })
         .unwrap_or(b_radii);
-    // let b1 = atoms
-    //     .iter()
-    //     .skip(2)
-    //     .map(|atom| {
-    //         Ok::<f64, anyhow::Error>((atom.position - b.position).norm()
-    //             + table
-    //                 .get(atom.element)
-    //                 .with_context(|| format!("Failed to read radiis of element {}", atom.element))?
-    //                 .value)
-    //     })
-    //     .collect::<Result<Vec<f64>>>()?
-    //     .into_iter()
-    //     .reduce(|acc, next| if acc > next { acc } else { next })
-    //     .unwrap_or(mean_width);
-    // let b5 = atoms
-    //     .iter()
-    //     .skip(2)
-    //     .map(|atom| {
-    //         Ok::<f64, anyhow::Error>((atom.position - b.position).norm()
-    //             + table
-    //                 .get(atom.element)
-    //                 .with_context(|| format!("Failed to read radiis of element {}", atom.element))?
-    //                 .value)
-    //     })
-    //     .collect::<Result<Vec<f64>>>()?
-    //     .into_iter()
-    //     .reduce(|acc, next| if acc > next { acc } else { next })
-    //     .unwrap_or(mean_width);
     Ok((l, b1, b5))
+}
+
+pub fn tolman_cone_angle(molecular_graph: &MolecularGraph) -> Result<f64> {
+    let a = molecular_graph
+        .node_weight(0.into())
+        .with_context(|| "First atom of substituent group not found, require at least 2 atoms")?;
+    let b = molecular_graph
+        .node_weight(1.into())
+        .with_context(|| "Second atom of subsitutent group not found, require at least 2 atoms")?;
+    let ab = b.position - a.position;
+    let branches = molecular_graph
+        .neighbors(1.into())
+        .filter(|idx| idx.index() != 0);
+    let branch_angles = branches
+        .map(|idx| {
+            let branch_atoms =
+                molecular_graph_walk(molecular_graph, idx.index(), 1, 0, vec![0, 1])?;
+            let branch_angle = branch_atoms
+                .into_iter()
+                .map(|(_, atom)| {
+                    let bc = atom.position - b.position;
+                    let theata_main = (bc.dot(&ab) / (bc.norm() * ab.norm())).acos();
+                    Ok(theata_main)
+                })
+                .collect::<Result<Vec<_>>>()?
+                .into_iter()
+                .reduce(|acc, next| if acc > next { acc } else { next })
+                .unwrap_or_default();
+            Ok(branch_angle)
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let branches = branch_angles.len();
+    let tolman_angle = branch_angles
+        .into_iter()
+        .map(|value| value / 2.)
+        .sum::<f64>();
+    if branches == 0 {
+        Ok(0.)
+    } else {
+        Ok(tolman_angle / (branches as f64) * 2.)
+    }
 }
