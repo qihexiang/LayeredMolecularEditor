@@ -45,7 +45,10 @@ impl From<SparseMolecule> for NamespaceMapping {
                     .map(|group_name| {
                         (
                             group_name.to_string(),
-                            groups.get_left(group_name).copied().collect(),
+                            groups
+                                .get_left(group_name)
+                                .filter_map(|index| atoms_mapping.get(index).copied())
+                                .collect(),
                         )
                     })
                     .collect()
@@ -73,7 +76,12 @@ impl From<BasicIOMolecule> for SparseMolecule {
         for (a, b, bond) in value.bonds {
             bonds.set_bond(a, b, Some(bond));
         }
-        Self { atoms, bonds, ids: None, groups: None }
+        Self {
+            atoms,
+            bonds,
+            ids: None,
+            groups: None,
+        }
     }
 }
 
@@ -160,7 +168,11 @@ impl BasicIOMolecule {
                     .parse()
                     .with_context(|| format!("Unable to parse z token in line {line}"))?;
                 let position = Point3::new(x, y, z);
-                Ok(Atom3D { element, position, formal_charge: 0. })
+                Ok(Atom3D {
+                    element,
+                    position,
+                    formal_charge: 0.,
+                })
             })
             .collect::<Result<Vec<_>>>()?;
         if amount != atoms.len() {
@@ -232,13 +244,20 @@ impl BasicIOMolecule {
                 let element = element_symbol_to_num(element).with_context(|| {
                     format!("Unable to convert {} to a element number", element)
                 })?;
-                let _ = line_items.next().with_context(|| format!("Residue ID not found in line {line}"))?;
-                let _ = line_items.next().with_context(|| format!("Residue Name not found in line {line}"))?;
-                let formal_charge = line_items.next().with_context(|| format!("Residue ID not found in line {line}"))?.parse()?;
+                let _ = line_items
+                    .next()
+                    .with_context(|| format!("Residue ID not found in line {line}"))?;
+                let _ = line_items
+                    .next()
+                    .with_context(|| format!("Residue Name not found in line {line}"))?;
+                let formal_charge = line_items
+                    .next()
+                    .with_context(|| format!("Residue ID not found in line {line}"))?
+                    .parse()?;
                 Ok(Atom3D {
                     element,
                     position: Point3::new(x, y, z),
-                    formal_charge
+                    formal_charge,
                 })
             })
             .collect::<Result<Vec<_>>>()?;
