@@ -254,7 +254,8 @@ impl Runner {
                             )
                         })?;
                     if pre_format.export_map {
-                        let map_file_path = working_directory.join("input.map.json");
+                        let mut map_file_path = working_directory.join(&pre_filename);
+                        map_file_path.set_extension("map.json");
                         let content = NamespaceMapping::from(structure.clone());
                         let file = File::create(&map_file_path).with_context(|| {
                             format!("Unable to create map file at {:?}", map_file_path)
