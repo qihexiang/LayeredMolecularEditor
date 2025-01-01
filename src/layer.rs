@@ -39,6 +39,13 @@ pub enum Layer {
         #[bincode(with_serde)]
         direction: Vector3<f64>,
     },
+    XYAlign {
+        o: SelectOne,
+        x: SelectOne,
+        y: SelectOne,
+        #[serde(default)]
+        select: SelectMany
+    },
     Translation {
         select: SelectMany,
         #[bincode(with_serde)]
@@ -61,8 +68,11 @@ pub enum Layer {
     },
     Rotation {
         select: SelectMany,
-        center: SelectOne,
         #[bincode(with_serde)]
+        #[serde(default)]
+        center: Point3<f64>,
+        #[bincode(with_serde)]
+        #[serde(default="Vector3::x")]
         axis: Vector3<f64>,
         angle: f64,
     },
@@ -151,6 +161,20 @@ impl Layer {
                     }
                 }
             }
+            Self::XYAlign { o, x, y, select } => {
+                let o_position = o.get_atom(&current).ok_or(o.clone())?.position;
+                let move_to_origin = Point3::origin() - o_position;
+                current = Self::Translation { select: select.clone(), vector: move_to_origin }.filter(current)?;
+                let x_position = x.get_atom(&current).ok_or(x.clone())?.position;
+                let ox = (x_position - Point3::origin()).normalize();
+                let (ox_rt_axis, ox_rt_angle) = axis_angle_for_b2a(Vector3::x(), ox);
+                current = Self::Rotation { select: select.clone(), center: Point3::origin(), axis: *ox_rt_axis, angle: ox_rt_angle }.filter(current)?;
+                let y_position = y.get_atom(&current).ok_or(y.clone())?.position;
+                let oy = y_position - Point3::origin();
+                let oy = (oy - oy.dot(&Vector3::x()) * Vector3::x()).normalize();
+                let (oy_rt_axis, oy_rt_angle) = axis_angle_for_b2a(Vector3::y(), oy);
+                current = Self::Rotation { select: select.clone(), center: Default::default(), axis: *oy_rt_axis, angle: oy_rt_angle }.filter(current)?;
+            }
             Self::SetCenter { select, center } => {
                 let target_atom = select.get_atom(&current);
                 if let Some(target_atom) = target_atom {
@@ -204,7 +228,7 @@ impl Layer {
                 let (axis, angle) = axis_angle_for_b2a(*direction, current_direction);
                 current = Self::Rotation {
                     select: select.clone(),
-                    center: a.clone(),
+                    center: center_atom.position,
                     axis: *axis,
                     angle,
                 }
@@ -216,25 +240,20 @@ impl Layer {
                 axis,
                 angle,
             } => {
-                let center_atom = center.get_atom(&current);
-                if let Some(center) = center_atom {
-                    let move_to_origin = Point3::origin() - center.position;
-                    let move_to_origin =
-                        Translation3::new(move_to_origin.x, move_to_origin.y, move_to_origin.z);
-                    let move_back = move_to_origin.inverse();
-                    current
-                        .atoms
-                        .isometry(move_to_origin.into(), &select.to_indexes(&current));
-                    current.atoms.isometry(
-                        Isometry3::rotation(*axis * *angle),
-                        &select.to_indexes(&current),
-                    );
-                    current
-                        .atoms
-                        .isometry(move_back.into(), &select.to_indexes(&current));
-                } else {
-                    Err(center.clone())?
-                }
+                let move_to_origin = Point3::origin() - center;
+                let move_to_origin =
+                    Translation3::new(move_to_origin.x, move_to_origin.y, move_to_origin.z);
+                let move_back = move_to_origin.inverse();
+                current
+                    .atoms
+                    .isometry(move_to_origin.into(), &select.to_indexes(&current));
+                current.atoms.isometry(
+                    Isometry3::rotation(*axis * *angle),
+                    &select.to_indexes(&current),
+                );
+                current
+                    .atoms
+                    .isometry(move_back.into(), &select.to_indexes(&current));
             }
             Self::Isometry { select, isometry } => {
                 current
@@ -287,9 +306,10 @@ impl SelectOne {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode, Default)]
 #[serde(untagged)]
 pub enum SelectMany {
+    #[default]
     All,
     Complex {
         includes: Vec<SelectMany>,
