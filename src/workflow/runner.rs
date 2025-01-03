@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use cached::{proc_macro::cached, SizedCache};
-use lmers::layer::SelectMany;
+use lmers::layer::{self, SelectMany};
 use lmers::utils::fs::copy_skeleton;
 use nalgebra::Vector3;
 use std::fs::File;
@@ -72,11 +72,12 @@ pub enum Runner {
     AppendLayers {
         layers: Vec<Layer>,
     },
+    DistributeLayers(BTreeMap<String, Layer>),
     Substituent {
         address: BTreeMap<String, (SelectOne, SelectOne)>,
         file_pattern: String,
     },
-    Command {
+    Plugin {
         command: String,
         arguments: Vec<String>,
     },
@@ -140,7 +141,35 @@ impl Runner {
                         .collect(),
                 ))
             }
-            Self::Command { command, arguments } => {
+            Self::DistributeLayers(maps) => {
+                let new_layers = maps.values().cloned().collect::<Vec<_>>();
+                let new_layers = layer_storage.create_layers(&new_layers).collect::<Vec<_>>();
+                let new_layers = maps
+                    .keys()
+                    .enumerate()
+                    .map(|(idx, key)| (key, new_layers[idx]))
+                    .collect::<BTreeMap<_, _>>();
+                let result = new_layers
+                    .into_iter()
+                    .map(|(name, layer_id)| {
+                        (
+                            name.to_string(),
+                            current_window
+                                .clone()
+                                .into_iter()
+                                .map(|(current_title, mut stack)| {
+                                    (format!("{current_title}_{name}"), {
+                                        stack.push(layer_id);
+                                        stack
+                                    })
+                                })
+                                .collect::<BTreeMap<_, _>>(),
+                        )
+                    })
+                    .collect();
+                Ok(RunnerOutput::MultiWindow(result))
+            }
+            Self::Plugin { command, arguments } => {
                 let input = current_window
                     .into_par_iter()
                     .map(|(title, stack_path)| {
