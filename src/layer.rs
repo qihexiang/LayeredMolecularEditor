@@ -3,7 +3,7 @@ use std::{
     ops::RangeInclusive,
 };
 
-use bincode::{Encode, Decode};
+use bincode::{Decode, Encode};
 use nalgebra::{Isometry3, Point3, Translation3, Vector3};
 use redb::Value;
 use serde::{Deserialize, Serialize};
@@ -16,17 +16,35 @@ use crate::{
 };
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
-#[serde(tag = "layer", content = "arguments")]
+#[serde(tag = "type")]
 pub enum Layer {
-    Fill(SparseMolecule),
-    Insert(usize, SparseMolecule),
-    Append(String, SparseMolecule),
-    SetAtom(Vec<(SelectOne, Option<Atom3D>)>),
-    UpdateFormalCharge(Vec<(SelectOne, f64)>),
-    AppendAtoms(Vec<Atom3D>),
-    SetBond(Vec<(SelectOne, SelectOne, f64)>),
+    Fill {
+        data: SparseMolecule,
+    },
+    Insert {
+        offset: usize,
+        data: SparseMolecule,
+    },
+    Append {
+        name: String,
+        data: SparseMolecule,
+    },
+    SetAtom {
+        atoms: Vec<(SelectOne, Option<Atom3D>)>,
+    },
+    UpdateFormalCharge {
+        charges: Vec<(SelectOne, f64)>,
+    },
+    AppendAtoms {
+        atoms: Vec<Atom3D>,
+    },
+    SetBond {
+        bonds: Vec<(SelectOne, SelectOne, f64)>,
+    },
     IdMap(BTreeMap<String, usize>),
-    GroupMap(Vec<(String, SelectMany)>),
+    GroupMap {
+        groups: Vec<(String, SelectMany)>,
+    },
     SetCenter {
         select: SelectOne,
         #[serde(default)]
@@ -44,7 +62,7 @@ pub enum Layer {
         x: SelectOne,
         y: SelectOne,
         #[serde(default)]
-        select: SelectMany
+        select: SelectMany,
     },
     Translation {
         select: SelectMany,
@@ -72,7 +90,7 @@ pub enum Layer {
         #[serde(default)]
         center: Point3<f64>,
         #[bincode(with_serde)]
-        #[serde(default="Vector3::x")]
+        #[serde(default = "Vector3::x")]
         axis: Vector3<f64>,
         angle: f64,
     },
@@ -81,60 +99,65 @@ pub enum Layer {
         #[bincode(with_serde)]
         isometry: Isometry3<f64>,
     },
-    RemoveAtoms(SelectMany),
+    RemoveAtoms {
+        select: SelectMany,
+    },
 }
 
 impl Default for Layer {
     fn default() -> Self {
-        Self::Fill(Default::default())
+        Self::Fill { data: Default::default() }
     }
 }
 
 impl Layer {
     pub fn filter(&self, mut current: SparseMolecule) -> Result<SparseMolecule, SelectOne> {
         match self {
-            Self::Fill(data) => current.migrate(data.clone()),
-            Self::Insert(offset, molecule) => {
-                current.migrate(molecule.clone().offset(*offset));
+            Self::Fill { data } => current.migrate(data.clone()),
+            Self::Insert { offset, data } => {
+                current.migrate(data.clone().offset(*offset));
             }
-            Self::Append(prefix, molecule) => {
-                let mut molecule = molecule.clone();
+            Self::Append { name, data } => {
+                let mut molecule = data.clone();
                 molecule.ids = molecule.ids.map(|ids| {
                     ids.into_iter()
-                        .map(|(name, index)| (format!("{}_{}", prefix, name), index))
+                        .map(|(name, index)| (format!("{}_{}", name, name), index))
                         .collect()
                 });
-                molecule.groups =
-                    molecule.groups.map(|groups| {
-                        GroupName::from_iter(groups.into_iter().map(|(group_name, index)| {
-                            (format!("{}_{}", prefix, group_name), index)
-                        }))
-                    });
-                let molecule = Layer::GroupMap(vec![(prefix.to_string(), SelectMany::All)])
-                    .filter(molecule)?;
+                molecule.groups = molecule.groups.map(|groups| {
+                    GroupName::from_iter(
+                        groups
+                            .into_iter()
+                            .map(|(group_name, index)| (format!("{}_{}", name, group_name), index)),
+                    )
+                });
+                let molecule = Layer::GroupMap {
+                    groups: vec![(name.to_string(), SelectMany::All)],
+                }
+                .filter(molecule)?;
                 let molecule = molecule.offset(current.len());
                 current.migrate(molecule);
             }
-            Self::SetBond(bonds) => {
+            Self::SetBond { bonds } => {
                 for (a, b, bond) in bonds {
                     let a = a.to_index(&current).ok_or(a.clone())?;
                     let b = b.to_index(&current).ok_or(b.clone())?;
                     current.bonds.set_bond(a, b, Some(*bond));
                 }
             }
-            Self::SetAtom(updates) => {
-                for (select, atom) in updates {
+            Self::SetAtom { atoms } => {
+                for (select, atom) in atoms {
                     select.set_atom(&mut current, atom.clone());
                 }
-            },
-            Self::UpdateFormalCharge(updates) => {
-                for (select, charge) in updates {
+            }
+            Self::UpdateFormalCharge { charges } => {
+                for (select, charge) in charges {
                     let mut current_atom = select.get_atom(&current).ok_or(select.clone())?;
                     current_atom.formal_charge = *charge;
                     select.set_atom(&mut current, Some(current_atom));
                 }
             }
-            Self::AppendAtoms(atoms) => {
+            Self::AppendAtoms { atoms } => {
                 current.atoms.set_atoms(
                     current.atoms.len(),
                     atoms.iter().map(|atom| Some(*atom)).collect(),
@@ -147,8 +170,8 @@ impl Layer {
                     current.ids = Some(data.clone());
                 }
             }
-            Self::GroupMap(data) => {
-                for (name, selects) in data {
+            Self::GroupMap { groups } => {
+                for (name, selects) in groups {
                     let selects = selects
                         .to_indexes(&current)
                         .into_iter()
@@ -164,16 +187,32 @@ impl Layer {
             Self::XYAlign { o, x, y, select } => {
                 let o_position = o.get_atom(&current).ok_or(o.clone())?.position;
                 let move_to_origin = Point3::origin() - o_position;
-                current = Self::Translation { select: select.clone(), vector: move_to_origin }.filter(current)?;
+                current = Self::Translation {
+                    select: select.clone(),
+                    vector: move_to_origin,
+                }
+                .filter(current)?;
                 let x_position = x.get_atom(&current).ok_or(x.clone())?.position;
                 let ox = (x_position - Point3::origin()).normalize();
                 let (ox_rt_axis, ox_rt_angle) = axis_angle_for_b2a(Vector3::x(), ox);
-                current = Self::Rotation { select: select.clone(), center: Point3::origin(), axis: *ox_rt_axis, angle: ox_rt_angle }.filter(current)?;
+                current = Self::Rotation {
+                    select: select.clone(),
+                    center: Point3::origin(),
+                    axis: *ox_rt_axis,
+                    angle: ox_rt_angle,
+                }
+                .filter(current)?;
                 let y_position = y.get_atom(&current).ok_or(y.clone())?.position;
                 let oy = y_position - Point3::origin();
                 let oy = (oy - oy.dot(&Vector3::x()) * Vector3::x()).normalize();
                 let (oy_rt_axis, oy_rt_angle) = axis_angle_for_b2a(Vector3::y(), oy);
-                current = Self::Rotation { select: select.clone(), center: Default::default(), axis: *oy_rt_axis, angle: oy_rt_angle }.filter(current)?;
+                current = Self::Rotation {
+                    select: select.clone(),
+                    center: Default::default(),
+                    axis: *oy_rt_axis,
+                    angle: oy_rt_angle,
+                }
+                .filter(current)?;
             }
             Self::SetCenter { select, center } => {
                 let target_atom = select.get_atom(&current);
@@ -260,7 +299,7 @@ impl Layer {
                     .atoms
                     .isometry(*isometry, &select.to_indexes(&current));
             }
-            Self::RemoveAtoms(select) => {
+            Self::RemoveAtoms { select } => {
                 let selected = select.to_indexes(&current);
                 let atoms = SparseAtomList::from(
                     (0..current.atoms.len())
@@ -370,13 +409,17 @@ impl Value for Layer {
 
     fn from_bytes<'a>(data: &'a [u8]) -> Self::SelfType<'a>
     where
-        Self: 'a {
-        bincode::decode_from_slice(data, bincode::config::standard()).unwrap().0
+        Self: 'a,
+    {
+        bincode::decode_from_slice(data, bincode::config::standard())
+            .unwrap()
+            .0
     }
 
     fn as_bytes<'a, 'b: 'a>(value: &'a Self::SelfType<'b>) -> Self::AsBytes<'a>
     where
-        Self: 'b {
+        Self: 'b,
+    {
         bincode::encode_to_vec(value, bincode::config::standard()).unwrap()
     }
 

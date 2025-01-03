@@ -67,9 +67,11 @@ pub struct FormatOptions {
 }
 
 #[derive(Debug, Deserialize)]
-#[serde(tag = "runner", content = "options")]
+#[serde(tag = "with")]
 pub enum Runner {
-    AppendLayers(Vec<Layer>),
+    AppendLayers {
+        layers: Vec<Layer>,
+    },
     Substituent {
         address: BTreeMap<String, (SelectOne, SelectOne)>,
         file_pattern: String,
@@ -125,7 +127,7 @@ impl Runner {
     ) -> Result<RunnerOutput> {
         match self {
             Self::CheckPoint => Ok(RunnerOutput::None),
-            Self::AppendLayers(layers) => {
+            Self::AppendLayers { layers } => {
                 let layer_ids = layer_storage.create_layers(layers);
                 Ok(RunnerOutput::SingleWindow(
                     current_window
@@ -217,7 +219,12 @@ impl Runner {
                         )
                     })?;
                     if let Some(skeleton) = skeleton {
-                        copy_skeleton(skeleton, &working_directory).with_context(|| format!("Unable to copy skeleton folder from {:?} to {:?}", skeleton, working_directory))?
+                        copy_skeleton(skeleton, &working_directory).with_context(|| {
+                            format!(
+                                "Unable to copy skeleton folder from {:?} to {:?}",
+                                skeleton, working_directory
+                            )
+                        })?
                     }
                     let structure = cached_read_stack(base, &layer_storage, stack_path)?;
                     let bonds = structure.bonds.clone().to_continuous_list(&structure.atoms);
@@ -225,7 +232,13 @@ impl Runner {
                     let basic_molecule = BasicIOMolecule::new(title.to_string(), atoms, bonds);
                     let pre_content = basic_molecule.output(&pre_format.format)?;
                     let pre_content = if pre_format.openbabel {
-                        obabel(&pre_content, &pre_format.format, &pre_format.format, false, false)?
+                        obabel(
+                            &pre_content,
+                            &pre_format.format,
+                            &pre_format.format,
+                            false,
+                            false,
+                        )?
                     } else {
                         pre_content
                     };
@@ -387,7 +400,8 @@ impl Runner {
                 if post_file.is_some() {
                     let mut window = BTreeMap::new();
                     for (title, stack_path, updated) in results {
-                        let updated_layer = layer_storage.create_layers(&[Layer::Fill(updated)]);
+                        let updated_layer =
+                            layer_storage.create_layers(&[Layer::Fill { data: updated }]);
                         let mut stack_path = stack_path.clone();
                         stack_path.extend(updated_layer);
                         window.insert(title.to_string(), stack_path);
@@ -456,7 +470,11 @@ impl Runner {
                             let mut substituent = substituent.clone();
                             SelectOne::Index(0).set_atom(&mut substituent, None);
                             SelectOne::Index(1).set_atom(&mut substituent, None);
-                            let substituent = Layer::GroupMap(vec![(g_name.to_string(), SelectMany::All)]).filter(substituent).expect("SelectOne error will never happend at substituent rename");
+                            let substituent = Layer::GroupMap {
+                                groups: vec![(g_name.to_string(), SelectMany::All)],
+                            }
+                            .filter(substituent)
+                            .expect("SelectOne error will never happend at substituent rename");
                             let offset = current_structure.atoms.len();
                             let mut substituent = substituent.offset(offset);
                             substituent.ids = current_structure.ids.clone();
@@ -480,8 +498,9 @@ impl Runner {
                                 substituent.bonds.set_bond(a, b, bond);
                             }
                             stack_path.extend(align_layers);
-                            stack_path
-                                .extend(layer_storage.create_layers(&[Layer::Fill(substituent)]));
+                            stack_path.extend(
+                                layer_storage.create_layers(&[Layer::Fill { data: substituent }]),
+                            );
                         }
                         updated_stacks.insert(title, stack_path);
                     }

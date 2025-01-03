@@ -370,7 +370,7 @@ impl TryFrom<SparseMoleculeComponent> for SparseMolecule {
             )
         })?;
         Ok(
-            Layer::GroupMap(vec![(value.name, SelectMany::Range(0..=max_component_idx))])
+            Layer::GroupMap { groups: vec![(value.name, SelectMany::Range(0..=max_component_idx))] }
                 .filter(value.content)
                 .expect("Should never return Err here"),
         )
