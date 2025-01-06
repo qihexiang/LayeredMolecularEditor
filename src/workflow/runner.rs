@@ -1,8 +1,9 @@
 use anyhow::{anyhow, Context, Result};
 use cached::{proc_macro::cached, SizedCache};
-use lmers::layer::{self, SelectMany};
+use lmers::layer::SelectMany;
 use lmers::utils::fs::copy_skeleton;
-use nalgebra::Vector3;
+use nalgebra::{SimdBool, Vector3};
+use regex::Regex;
 use std::fs::File;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -81,6 +82,11 @@ pub enum Runner {
         command: String,
         arguments: Vec<String>,
     },
+    Retain {
+        #[serde(default)]
+        negate: bool,
+        pattern: String,
+    },
     Rename(RenameOptions),
     Calculation {
         working_directory: PathBuf,
@@ -128,6 +134,14 @@ impl Runner {
     ) -> Result<RunnerOutput> {
         match self {
             Self::CheckPoint => Ok(RunnerOutput::None),
+            Self::Retain { negate, pattern } => {
+                let regex = Regex::new(&pattern).with_context(|| format!("Failed to create regex with {pattern}"))?;
+                let mut current_window = current_window.clone();
+                current_window.retain(|k, _| {
+                    negate ^ regex.is_match(k)
+                });
+                Ok(RunnerOutput::SingleWindow(current_window))
+            },
             Self::AppendLayers { layers } => {
                 let layer_ids = layer_storage.create_layers(layers);
                 Ok(RunnerOutput::SingleWindow(
