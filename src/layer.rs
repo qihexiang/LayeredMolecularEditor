@@ -99,6 +99,16 @@ pub enum Layer {
         #[bincode(with_serde)]
         isometry: Isometry3<f64>,
     },
+    Mirror {
+        #[serde(default)]
+        select: SelectMany,
+        #[bincode(with_serde)]
+        #[serde(default)]
+        center: Point3<f64>,
+        #[bincode(with_serde)]
+        #[serde(default = "Vector3::x")]
+        law_vector: Vector3<f64>,
+    },
     RemoveAtoms {
         select: SelectMany,
     },
@@ -106,7 +116,9 @@ pub enum Layer {
 
 impl Default for Layer {
     fn default() -> Self {
-        Self::Fill { data: Default::default() }
+        Self::Fill {
+            data: Default::default(),
+        }
     }
 }
 
@@ -298,6 +310,38 @@ impl Layer {
                 current
                     .atoms
                     .isometry(*isometry, &select.to_indexes(&current));
+            }
+            Self::Mirror {
+                select,
+                center,
+                law_vector,
+            } => {
+                let selected = select.to_indexes(&current);
+                let law_vector = law_vector.normalize();
+                let atoms = SparseAtomList::from(
+                    current
+                        .atoms
+                        .data()
+                        .iter()
+                        .enumerate()
+                        .map(|(idx, atom)| {
+                            if selected.contains(&idx) {
+                                atom.map(|atom| {
+                                    let center_atom = atom.position - center;
+                                    let projection = center_atom.dot(&law_vector) * law_vector;
+                                    let updated_position = atom.position - 2. * projection;
+                                    Atom3D {
+                                        position: updated_position,
+                                        ..atom
+                                    }
+                                })
+                            } else {
+                                *atom
+                            }
+                        })
+                        .collect::<Vec<_>>(),
+                );
+                current.atoms.migrate(atoms);
             }
             Self::RemoveAtoms { select } => {
                 let selected = select.to_indexes(&current);
