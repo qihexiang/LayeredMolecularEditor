@@ -63,6 +63,7 @@ impl From<SparseMolecule> for NamespaceMapping {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct BasicIOMolecule {
     pub atoms: Vec<Atom3D>,
     pub bonds: Vec<(usize, usize, f64)>,
@@ -109,6 +110,7 @@ impl BasicIOMolecule {
         match format {
             "xyz" => self.output_to_xyz(),
             "mol2" => self.output_to_mol2(),
+            "lme_json" => Ok(serde_json::to_string(&self)?),
             format => Err(anyhow!("Unsupported format {format}")),
         }
     }
@@ -117,6 +119,7 @@ impl BasicIOMolecule {
         match format {
             "xyz" => Self::input_from_xyz(r),
             "mol2" => Self::input_from_mol2(r),
+            "lme_json" => Ok(serde_json::from_reader(r)?),
             format => Err(anyhow!("Unsupported format {format}")),
         }
     }
