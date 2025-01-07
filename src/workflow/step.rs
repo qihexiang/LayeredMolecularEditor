@@ -67,6 +67,19 @@ impl Step {
 #[serde(try_from = "StepsLoader")]
 pub struct Steps(pub Vec<Step>);
 
+impl Steps {
+    fn concat(mut a: Self, mut b: Self) -> Self {
+        let mut steps = vec![];
+        steps.append(&mut a.0);
+        steps.append(&mut b.0);
+        Self(steps)
+    }
+
+    fn push(&mut self, value: Step) {
+        self.0.push(value);
+    }
+}
+
 #[derive(Deserialize, Debug)]
 struct StepsLoader(Vec<StepLoader>);
 
@@ -85,19 +98,42 @@ impl TryFrom<StepsLoader> for Steps {
 
 #[derive(Deserialize, Debug)]
 struct StepLoader {
+    #[serde(default)]
     from: Option<String>,
+    #[serde(default)]
     name: Option<String>,
+    #[serde(default)]
     run: Option<Runner>,
+    #[serde(default)]
     load: Option<String>,
 }
 
 lazy_static! {
-    static ref YAML_VARIABLE_RE: Regex = Regex::new(r"\{\{ __.* \}\}").unwrap();
+    static ref YAML_NULLABLE_VARIABLE_RE: Regex = Regex::new(r"\{\{ __.* \}\}").unwrap();
 }
 
+/// Generate step list from input file.
+/// 
+/// The `run` field specify the first step in the loader, if no `run` field specified, the CheckPoint runner will be used. 
+/// The `from` field will be always attached to the first step.
+/// 
+/// The `load` field speicifies steps loaded from other files, which would be put after the first step. if no `loader` specified, 
+/// the `name` field will be attached to the first step, otherwise a CheckPoint step will be automatically created at the end of 
+/// the step queue and the `name` field will be attached to it.
+/// 
 impl TryFrom<StepLoader> for Steps {
     type Error = anyhow::Error;
     fn try_from(value: StepLoader) -> Result<Self> {
+        let mut steps = Steps(vec![Step {
+            from: value.from,
+            name: if value.load.is_none() {
+                value.name.clone()
+            } else {
+                None
+            },
+            run: value.run.unwrap_or_default(),
+        }]);
+
         if let Some(filepath) = value.load {
             let url = if filepath.starts_with("/") {
                 Url::parse(&format!("file:{}", filepath))?
@@ -130,25 +166,24 @@ impl TryFrom<StepLoader> for Steps {
                     let k = format!("{{{{ {} }}}}", k);
                     content = content.replace(&k, &v);
                 }
-                let content = YAML_VARIABLE_RE.replace_all(&content, "null");
-                Ok(serde_yaml::from_str(&content)?)
+                let content = YAML_NULLABLE_VARIABLE_RE.replace_all(&content, "null");
+                println!("Input from template generated: \n{}", content);
+                steps = Steps::concat(steps, serde_yaml::from_str(&content)?);
             } else {
                 println!("Loading {:?}", filepath);
                 let file = File::open(&filepath)
                     .with_context(|| format!("Failed to open target file {:?}", filepath))?;
-                Ok(serde_yaml::from_reader(file)?)
+                steps = Steps::concat(steps, serde_yaml::from_reader(file)?);
             }
-        } else if let Some(runner) = value.run {
-            Ok(Steps(vec![Step {
-                from: value.from,
-                name: value.name,
-                run: runner,
-            }]))
-        } else {
-            Err(anyhow!(format!(
-                "No load or run field is specified in {:#?}",
-                value
-            )))
-        }
+            if value.name.is_some() {
+                steps.push(Step {
+                    from: None,
+                    name: value.name,
+                    run: Runner::default(),
+                });
+            }
+        };
+
+        Ok(steps)
     }
 }

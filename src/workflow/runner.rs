@@ -4,7 +4,6 @@ use lmers::layer::SelectMany;
 use lmers::utils::fs::copy_skeleton;
 use nalgebra::Vector3;
 use regex::Regex;
-use std::default;
 use std::fs::File;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
