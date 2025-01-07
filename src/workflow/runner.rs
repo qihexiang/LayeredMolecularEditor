@@ -2,8 +2,9 @@ use anyhow::{anyhow, Context, Result};
 use cached::{proc_macro::cached, SizedCache};
 use lmers::layer::SelectMany;
 use lmers::utils::fs::copy_skeleton;
-use nalgebra::{SimdBool, Vector3};
+use nalgebra::Vector3;
 use regex::Regex;
+use std::default;
 use std::fs::File;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -32,7 +33,7 @@ pub struct RenameOptions {
     #[serde(default)]
     replace: Option<(String, String)>,
     #[serde(default)]
-    regex: Vec<String>,
+    sed: Vec<String>,
 }
 
 impl RenameOptions {
@@ -41,7 +42,7 @@ impl RenameOptions {
         if let Some((from, to)) = &self.replace {
             title = title.replace(from, to)
         }
-        title = regex_sed(&title, &self.regex.join("; "))?;
+        title = regex_sed(&title, &self.sed.join("; "))?;
         if let Some(prefix) = &self.prefix {
             title = [prefix.to_string(), title].join("_")
         }
@@ -67,7 +68,7 @@ pub struct FormatOptions {
     export_map: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Default, Debug, Deserialize)]
 #[serde(tag = "with")]
 pub enum Runner {
     AppendLayers {
@@ -115,6 +116,7 @@ pub enum Runner {
         #[serde(default)]
         stderr: Option<String>,
     },
+    #[default]
     CheckPoint,
 }
 
@@ -494,7 +496,6 @@ impl Runner {
                             })?;
                     let mut updated_stacks = BTreeMap::new();
                     for (current_title, stack_path) in current_window {
-                        // println!("{:?}", stack_path);
                         let title = format!("{}_{}", current_title, substituent_name);
                         let mut stack_path = stack_path.clone();
                         for (g_name, (center, replace)) in address {
