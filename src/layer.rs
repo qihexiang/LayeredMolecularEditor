@@ -1,6 +1,5 @@
 use std::{
-    collections::{BTreeMap, BTreeSet},
-    ops::RangeInclusive,
+    collections::{BTreeMap, BTreeSet}, f64::consts::PI, ops::RangeInclusive
 };
 
 use bincode::{Decode, Encode};
@@ -18,6 +17,7 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Encode, Decode)]
 #[serde(tag = "type")]
 pub enum Layer {
+    Transparent,
     Fill {
         data: SparseMolecule,
     },
@@ -93,6 +93,8 @@ pub enum Layer {
         #[serde(default = "Vector3::x")]
         axis: Vector3<f64>,
         angle: f64,
+        #[serde(default)]
+        degree: bool
     },
     Isometry {
         select: SelectMany,
@@ -125,6 +127,7 @@ impl Default for Layer {
 impl Layer {
     pub fn filter(&self, mut current: SparseMolecule) -> Result<SparseMolecule, SelectOne> {
         match self {
+            Self::Transparent => {},
             Self::Fill { data } => current.migrate(data.clone()),
             Self::Insert { offset, data } => {
                 current.migrate(data.clone().offset(*offset));
@@ -133,7 +136,7 @@ impl Layer {
                 let mut molecule = data.clone();
                 molecule.ids = molecule.ids.map(|ids| {
                     ids.into_iter()
-                        .map(|(name, index)| (format!("{}_{}", name, name), index))
+                        .map(|(private_id, index)| (format!("{}_{}", name, private_id), index))
                         .collect()
                 });
                 molecule.groups = molecule.groups.map(|groups| {
@@ -212,6 +215,7 @@ impl Layer {
                     center: Point3::origin(),
                     axis: *ox_rt_axis,
                     angle: ox_rt_angle,
+                    degree: false
                 }
                 .filter(current)?;
                 let y_position = y.get_atom(&current).ok_or(y.clone())?.position;
@@ -223,6 +227,7 @@ impl Layer {
                     center: Default::default(),
                     axis: *oy_rt_axis,
                     angle: oy_rt_angle,
+                    degree: false
                 }
                 .filter(current)?;
             }
@@ -282,6 +287,7 @@ impl Layer {
                     center: center_atom.position,
                     axis: *axis,
                     angle,
+                    degree: false
                 }
                 .filter(current)?;
             }
@@ -290,7 +296,13 @@ impl Layer {
                 center,
                 axis,
                 angle,
+                degree
             } => {
+                let angle = if *degree {
+                    angle * PI / 180.
+                } else {
+                    *angle
+                };
                 let move_to_origin = Point3::origin() - center;
                 let move_to_origin =
                     Translation3::new(move_to_origin.x, move_to_origin.y, move_to_origin.z);
@@ -299,7 +311,7 @@ impl Layer {
                     .atoms
                     .isometry(move_to_origin.into(), &select.to_indexes(&current));
                 current.atoms.isometry(
-                    Isometry3::rotation(*axis * *angle),
+                    Isometry3::rotation(*axis * angle),
                     &select.to_indexes(&current),
                 );
                 current
