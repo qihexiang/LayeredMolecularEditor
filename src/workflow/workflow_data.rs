@@ -1,7 +1,4 @@
-use lmers::{
-    layer::{Layer, SelectOne},
-    sparse_molecule::SparseMolecule,
-};
+use lmers::{layer::Layer, sparse_molecule::SparseMolecule};
 use redb::{Database, ReadableTableMetadata, TableDefinition};
 use std::{collections::BTreeMap, ops::Range, path::PathBuf};
 
@@ -22,7 +19,10 @@ pub struct WorkflowData {
 impl WorkflowData {
     pub fn new(base: SparseMolecule, db_path: PathBuf) -> Self {
         Self {
-            base, layers: LayerStorage::new(db_path), windows: BTreeMap::new(), current_window: BTreeMap::from([("".to_string(), vec![])])
+            base,
+            layers: LayerStorage::new(db_path),
+            windows: BTreeMap::new(),
+            current_window: BTreeMap::from([("".to_string(), vec![])]),
         }
     }
 }
@@ -36,14 +36,11 @@ pub struct LayerStorage {
 }
 
 impl LayerStorage {
-    pub fn new( db_path: PathBuf) -> Self {
+    pub fn new(db_path: PathBuf) -> Self {
         let db = Database::create(&db_path)
-        .or(Database::open(&db_path))
-        .unwrap();
-        Self {
-            db_path,
-            db
-        }
+            .or(Database::open(&db_path))
+            .unwrap();
+        Self { db_path, db }
     }
 
     pub fn get_config(&self) -> LayerStorageConfig {
@@ -68,20 +65,6 @@ impl TryFrom<LayerStorageConfig> for LayerStorage {
         })
     }
 }
-
-#[derive(Serialize, Debug, Clone)]
-pub enum LayerStorageError {
-    NoSuchLayer(u64),
-    FilterError(SelectOne),
-}
-
-impl std::fmt::Display for LayerStorageError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:#?}", self)
-    }
-}
-
-impl std::error::Error for LayerStorageError {}
 
 impl LayerStorage {
     fn next_layer_id(&self) -> u64 {

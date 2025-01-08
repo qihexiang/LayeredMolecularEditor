@@ -1,5 +1,8 @@
 use std::{
-    collections::{BTreeMap, BTreeSet}, f64::consts::PI, ops::RangeInclusive
+    collections::{BTreeMap, BTreeSet},
+    f64::consts::PI,
+    fmt::Display,
+    ops::RangeInclusive,
 };
 
 use bincode::{Decode, Encode};
@@ -94,7 +97,7 @@ pub enum Layer {
         axis: Vector3<f64>,
         angle: f64,
         #[serde(default)]
-        degree: bool
+        degree: bool,
     },
     Isometry {
         select: SelectMany,
@@ -114,6 +117,12 @@ pub enum Layer {
     RemoveAtoms {
         select: SelectMany,
     },
+    Hide {
+        select: SelectMany,
+    },
+    UnHide {
+        select: SelectMany,
+    },
 }
 
 impl Default for Layer {
@@ -125,9 +134,9 @@ impl Default for Layer {
 }
 
 impl Layer {
-    pub fn filter(&self, mut current: SparseMolecule) -> Result<SparseMolecule, SelectOne> {
+    pub fn filter(&self, mut current: SparseMolecule) -> Result<SparseMolecule, LayerStorageError> {
         match self {
-            Self::Transparent => {},
+            Self::Transparent => {}
             Self::Fill { data } => current.migrate(data.clone()),
             Self::Insert { offset, data } => {
                 current.migrate(data.clone().offset(*offset));
@@ -215,7 +224,7 @@ impl Layer {
                     center: Point3::origin(),
                     axis: *ox_rt_axis,
                     angle: ox_rt_angle,
-                    degree: false
+                    degree: false,
                 }
                 .filter(current)?;
                 let y_position = y.get_atom(&current).ok_or(y.clone())?.position;
@@ -227,7 +236,7 @@ impl Layer {
                     center: Default::default(),
                     axis: *oy_rt_axis,
                     angle: oy_rt_angle,
-                    degree: false
+                    degree: false,
                 }
                 .filter(current)?;
             }
@@ -287,7 +296,7 @@ impl Layer {
                     center: center_atom.position,
                     axis: *axis,
                     angle,
-                    degree: false
+                    degree: false,
                 }
                 .filter(current)?;
             }
@@ -296,13 +305,9 @@ impl Layer {
                 center,
                 axis,
                 angle,
-                degree
+                degree,
             } => {
-                let angle = if *degree {
-                    angle * PI / 180.
-                } else {
-                    *angle
-                };
+                let angle = if *degree { angle * PI / 180. } else { *angle };
                 let move_to_origin = Point3::origin() - center;
                 let move_to_origin =
                     Translation3::new(move_to_origin.x, move_to_origin.y, move_to_origin.z);
@@ -358,8 +363,8 @@ impl Layer {
             Self::RemoveAtoms { select } => {
                 let selected = select.to_indexes(&current);
                 let atoms = SparseAtomList::from(
-                    (0..current.atoms.len())
-                        .map(|index| {
+                    current.atoms.data().iter().enumerate()
+                        .map(|(index, _)| {
                             if selected.contains(&index) {
                                 Some(Atom3D::default())
                             } else {
@@ -369,6 +374,52 @@ impl Layer {
                         .collect::<Vec<_>>(),
                 );
                 current.atoms.migrate(atoms);
+            }
+            Self::Hide { select } => {
+                let selected = select.to_indexes(&current);
+                let atoms = current.atoms.data().iter().enumerate().map(|(idx, atom)| {
+                    if selected.contains(&idx) {
+                        Ok(if let Some(atom) = atom {
+                            Some(Atom3D {
+                                element: atom.element.checked_add(128).ok_or((idx, atom.element))?,
+                                ..*atom
+                            })
+                        } else {
+                            None
+                        })
+                    } else {
+                        Ok(None)
+                    }
+                }).collect::<Result<Vec<_>,LayerStorageError>>()?;
+                current.atoms.migrate(SparseAtomList::from(atoms));
+            }
+            Self::UnHide { select } => {
+                let selected = select.to_indexes(&current);
+                let atoms = current
+                    .atoms
+                    .data()
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, atom)| {
+                        if selected.contains(&idx) {
+                            Ok(if let Some(atom) = atom {
+                                Some(Atom3D {
+                                    element: atom
+                                        .element
+                                        .checked_sub(128)
+                                        .ok_or((idx, atom.element))?,
+                                    ..*atom
+                                })
+                            } else {
+                                None
+                            })
+                        } else {
+                            Ok(None)
+                        }
+                    })
+                    .collect::<Result<Vec<_>, LayerStorageError>>()?;
+
+                current.atoms.migrate(SparseAtomList::from(atoms));
             }
         }
         Ok(current)
@@ -380,6 +431,26 @@ impl Layer {
 pub enum SelectOne {
     Index(usize),
     IdName(String),
+}
+
+impl Display for SelectOne {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for SelectOne {
+    fn description(&self) -> &str {
+        "Unable to find the atom specified by the element"
+    }
+
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        None
+    }
+
+    fn cause(&self) -> Option<&dyn std::error::Error> {
+        self.source()
+    }
 }
 
 impl SelectOne {
@@ -483,3 +554,33 @@ impl Value for Layer {
         redb::TypeName::new("layer_table")
     }
 }
+
+#[derive(Serialize, Debug, Clone)]
+pub enum LayerStorageError {
+    NoSuchLayer(u64),
+    SelectNotFound(SelectOne),
+    HideOverflow { idx: usize, current_value: usize },
+}
+
+impl From<SelectOne> for LayerStorageError {
+    fn from(value: SelectOne) -> Self {
+        Self::SelectNotFound(value)
+    }
+}
+
+impl From<(usize, usize)> for LayerStorageError {
+    fn from(value: (usize, usize)) -> Self {
+        Self::HideOverflow {
+            idx: value.0,
+            current_value: value.1,
+        }
+    }
+}
+
+impl std::fmt::Display for LayerStorageError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:#?}", self)
+    }
+}
+
+impl std::error::Error for LayerStorageError {}

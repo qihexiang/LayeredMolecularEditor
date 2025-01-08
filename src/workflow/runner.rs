@@ -1,6 +1,6 @@
 use anyhow::{anyhow, Context, Result};
 use cached::{proc_macro::cached, SizedCache};
-use lmers::layer::SelectMany;
+use lmers::layer::{LayerStorageError, SelectMany};
 use lmers::utils::fs::copy_skeleton;
 use nalgebra::Vector3;
 use regex::Regex;
@@ -21,7 +21,7 @@ use tempfile::tempdir;
 use glob::glob;
 use rayon::prelude::*;
 
-use super::workflow_data::{LayerStorage, LayerStorageError, Window};
+use super::workflow_data::{LayerStorage, Window};
 
 #[derive(Debug, Deserialize)]
 pub struct RenameOptions {
@@ -588,7 +588,6 @@ fn cached_read_stack(
         let lower_result = cached_read_stack(base, layer_storage, heads)?;
         layer
             .filter(lower_result)
-            .map_err(|err| LayerStorageError::FilterError(err))
     } else {
         Ok(base.clone())
     }
