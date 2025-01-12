@@ -111,6 +111,7 @@ impl BasicIOMolecule {
             "xyz" => self.output_to_xyz(),
             "mol2" => self.output_to_mol2(),
             "lme_json" => Ok(serde_json::to_string(&self)?),
+            "nothing" => Ok(String::from("")),
             format => Err(anyhow!("Unsupported format {format}")),
         }
     }
