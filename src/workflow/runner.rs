@@ -136,13 +136,12 @@ impl Runner {
         match self {
             Self::CheckPoint => Ok(RunnerOutput::None),
             Self::Retain { negate, pattern } => {
-                let regex = Regex::new(&pattern).with_context(|| format!("Failed to create regex with {pattern}"))?;
+                let regex = Regex::new(&pattern)
+                    .with_context(|| format!("Failed to create regex with {pattern}"))?;
                 let mut current_window = current_window.clone();
-                current_window.retain(|k, _| {
-                    negate ^ regex.is_match(k)
-                });
+                current_window.retain(|k, _| negate ^ regex.is_match(k));
                 Ok(RunnerOutput::SingleWindow(current_window))
-            },
+            }
             Self::AppendLayers { layers } => {
                 let layer_ids = layer_storage.create_layers(layers);
                 Ok(RunnerOutput::SingleWindow(
@@ -250,6 +249,7 @@ impl Runner {
                     format!("Unable to create directory at {:?}", working_directory)
                 })?;
                 let handler = |(title, stack_path): (&'a String, &'a Vec<u64>)| {
+                    // Prepare the working directory
                     let title = if let Some(redirect_to) = redirect_to {
                         redirect_to.rename(title)?
                     } else {
@@ -270,6 +270,7 @@ impl Runner {
                             )
                         })?
                     }
+                    // Prepare the input file for external program
                     let structure = cached_read_stack(base, &layer_storage, stack_path)?;
                     let bonds = structure.bonds.clone().to_continuous_list(&structure.atoms);
                     let atoms = structure.atoms.clone().into();
@@ -324,6 +325,7 @@ impl Runner {
                             )
                         })?;
                     }
+                    // Execute the program
                     if let Some(program) = program {
                         let mut command = Command::new(program);
                         command
@@ -441,6 +443,7 @@ impl Runner {
                         outputs.collect::<Result<Vec<_>>>()?
                     }
                 };
+                // Receive the execution result
                 if post_file.is_some() {
                     let mut window = BTreeMap::new();
                     for (title, stack_path, updated) in results {
@@ -586,8 +589,7 @@ fn cached_read_stack(
             .read_layer(*last)
             .ok_or(LayerStorageError::NoSuchLayer(*last))?;
         let lower_result = cached_read_stack(base, layer_storage, heads)?;
-        layer
-            .filter(lower_result)
+        layer.filter(lower_result)
     } else {
         Ok(base.clone())
     }
