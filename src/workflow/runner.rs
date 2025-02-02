@@ -2,8 +2,8 @@ use anyhow::{anyhow, Context, Result};
 use cached::{proc_macro::cached, SizedCache};
 use lmers::layer::{LayerStorageError, SelectMany};
 use lmers::utils::fs::copy_skeleton;
-use nalgebra::Vector3;
-use regex::Regex;
+use nalgebra::{ComplexField, Vector3};
+use fancy_regex::Regex;
 use std::fs::File;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -67,9 +67,61 @@ pub struct FormatOptions {
     export_map: bool,
 }
 
+#[derive(Deserialize, Debug)]
+#[serde(untagged)]
+pub enum Property3D {
+    Distance(SelectOne, SelectOne),
+    Angle(SelectOne, SelectOne, SelectOne)
+}
+
+impl Property3D {
+    fn compute(&self, structure: &SparseMolecule) -> Result<f64, anyhow::Error> {
+        match self {
+            Self::Angle(a, b, c) => {
+                let a = a.get_atom(structure).ok_or(a.clone())?;
+                let b = b.get_atom(structure).ok_or(b.clone())?;
+                let c = c.get_atom(structure).ok_or(c.clone())?;
+                let ba = a.position - b.position;
+                let bc = c.position - b.position;
+                Ok((ba.dot(&bc) / (ba.norm() * bc.norm())).acos())
+            },
+            Self::Distance(a, b) => {
+                let a = a.get_atom(structure).ok_or(a.clone())?;
+                let b = b.get_atom(structure).ok_or(b.clone())?;
+                Ok((a.position - b.position).norm())
+            }
+        }
+    }
+}
+
+#[derive(Deserialize, Debug)]
+pub struct Retain3DItem {
+    min: f64,
+    max: f64,
+    target: Property3D
+}
+
+impl Retain3DItem {
+    fn is_valid(&self, structure: &SparseMolecule) -> Result<bool, anyhow::Error> {
+        let result = self.target.compute(structure)?;
+        if self.min <= result && self.max >= result {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
+}
+
 #[derive(Default, Debug, Deserialize)]
 #[serde(tag = "with")]
 pub enum Runner {
+    ManualBreak {
+        filepath: String
+    },
+    CountBreak {
+        filepath: String,
+        times: usize
+    },
     AppendLayers {
         layers: Vec<Layer>,
     },
@@ -87,6 +139,7 @@ pub enum Runner {
         negate: bool,
         pattern: String,
     },
+    // Retain3D(Vec<Retain3DItem>),
     Rename(RenameOptions),
     Calculation {
         working_directory: PathBuf,
@@ -139,7 +192,7 @@ impl Runner {
                 let regex = Regex::new(&pattern)
                     .with_context(|| format!("Failed to create regex with {pattern}"))?;
                 let mut current_window = current_window.clone();
-                current_window.retain(|k, _| negate ^ regex.is_match(k));
+                current_window.retain(|k, _| negate ^ regex.is_match(k).with_context(|| "Some error of fancy_regex happend").unwrap());
                 Ok(RunnerOutput::SingleWindow(current_window))
             }
             Self::AppendLayers { layers } => {
@@ -563,6 +616,27 @@ impl Runner {
                     })
                     .collect::<Result<BTreeMap<_, _>>>()?,
             )),
+            Self::ManualBreak { filepath } => {
+                if std::fs::exists(filepath)? {
+                    Ok(RunnerOutput::None)
+                } else {
+                    Err(anyhow!("File {} not exists, break. Create it to continue", filepath))
+                }
+            },
+            Self::CountBreak { filepath, times } => {
+                let counter: usize = if let Ok(counter) = std::fs::read_to_string(filepath) {
+                    counter.parse().with_context(|| format!("Unable to parse counter file content {} in {}", counter, filepath))?
+                } else {
+                    0
+                };
+                let next_counter = counter + 1;
+                std::fs::write(filepath, format!("{}", next_counter)).with_context(|| format!("Failed to write counter information to {}", filepath))?;
+                if counter >= *times {
+                    Ok(RunnerOutput::None)
+                } else {
+                    Err(anyhow!("Current break times: {}, require break {} times, flag file: {}", counter, times, filepath))
+                }
+            }
         }
     }
 }
@@ -579,7 +653,7 @@ impl Runner {
     create = "{ SizedCache::with_size(std::env::var(\"LME_CACHE_SIZE\").unwrap_or(\"5000\".to_string()).parse().unwrap()) }",
     convert = r#"{ stack_path.iter().map(|item| item.to_string()).collect::<Vec<_>>().join("/") }"#
 )]
-fn cached_read_stack(
+pub fn cached_read_stack(
     base: &SparseMolecule,
     layer_storage: &LayerStorage,
     stack_path: &[u64],

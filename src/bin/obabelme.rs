@@ -17,11 +17,13 @@ enum Operation {
         /// Input file format
         #[clap(short='I')]
         input_format: String,
+        /// Generate 3D structure with openbabel
         #[clap(short='g')]
         gen3d: bool,
         /// Prepare generate file as substituents
         #[clap(short='s')]
         as_substituent: bool,
+        /// Specify the pathway of radius table for generate sterimol descriptors
         #[clap(short='S')]
         sterimol: Option<String>
     },

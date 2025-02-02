@@ -5,6 +5,7 @@ use std::{
     ops::RangeInclusive,
 };
 
+use anyhow::Context;
 use bincode::{Decode, Encode};
 use nalgebra::{Isometry3, Point3, Translation3, Vector3};
 use redb::Value;
@@ -44,7 +45,7 @@ pub enum Layer {
     SetBond {
         bonds: Vec<(SelectOne, SelectOne, f64)>,
     },
-    IdMap(BTreeMap<String, usize>),
+    IdMap(BTreeMap<String, SelectOne>),
     GroupMap {
         groups: Vec<(String, SelectMany)>,
     },
@@ -188,10 +189,13 @@ impl Layer {
                 );
             }
             Self::IdMap(data) => {
+                let data = data.iter().map(|(name, select)| {
+                    Ok((name.to_string(), select.to_index(&current).ok_or(select.clone())?))
+                }).collect::<Result<BTreeMap<_, _>, SelectOne>>()?;
                 if let Some(current_ids) = &mut current.ids {
-                    current_ids.extend(data.clone());
+                    current_ids.extend(data);
                 } else {
-                    current.ids = Some(data.clone());
+                    current.ids = Some(data);
                 }
             }
             Self::GroupMap { groups } => {

@@ -2,12 +2,13 @@ use std::{collections::BTreeMap, env::current_dir, fs::File, io::Read};
 
 use anyhow::{anyhow, Context, Result};
 use lazy_static::lazy_static;
-use regex::Regex;
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use fancy_regex::Regex;
 use serde::Deserialize;
 use url::Url;
 
 use super::{
-    runner::{Runner, RunnerOutput},
+    runner::{cached_read_stack, Runner, RunnerOutput},
     workflow_data::WorkflowData,
 };
 
@@ -33,14 +34,31 @@ impl Step {
             &workflow_data.current_window,
             &workflow_data.layers,
         )?;
+
+        let cache_generated_stacks = |generated_stacks: &BTreeMap<String, Vec<u64>>| {
+            generated_stacks
+            .par_iter()
+            .map(|(_, stack_path)| {
+                cached_read_stack(
+                    &workflow_data.base,
+                    &workflow_data.layers,
+                    &stack_path,
+                )
+            })
+            .collect::<Result<Vec<_>, _>>()
+        };
+
+        // Cache for generated stacks before result commit to current window, avoid lazy-computation defer the error.
         match generated_stacks {
             RunnerOutput::SingleWindow(generated_stacks) => {
+                cache_generated_stacks(&generated_stacks)?;
                 workflow_data.current_window = generated_stacks;
             }
             RunnerOutput::MultiWindow(named_stacks) => {
                 let prefix = self.name.clone().unwrap_or(index.to_string());
                 workflow_data.current_window = BTreeMap::new();
                 for (suffix, generated_stacks) in named_stacks {
+                    cache_generated_stacks(&generated_stacks)?;
                     workflow_data
                         .current_window
                         .extend(generated_stacks.clone());
@@ -50,6 +68,7 @@ impl Step {
             }
             RunnerOutput::None => {}
         };
+
         if let Some(name) = self.name {
             if workflow_data
                 .windows
@@ -113,14 +132,14 @@ lazy_static! {
 }
 
 /// Generate step list from input file.
-/// 
-/// The `run` field specify the first step in the loader, if no `run` field specified, the CheckPoint runner will be used. 
+///
+/// The `run` field specify the first step in the loader, if no `run` field specified, the CheckPoint runner will be used.
 /// The `from` field will be always attached to the first step.
-/// 
-/// The `load` field speicifies steps loaded from other files, which would be put after the first step. if no `loader` specified, 
-/// the `name` field will be attached to the first step, otherwise a CheckPoint step will be automatically created at the end of 
+///
+/// The `load` field speicifies steps loaded from other files, which would be put after the first step. if no `loader` specified,
+/// the `name` field will be attached to the first step, otherwise a CheckPoint step will be automatically created at the end of
 /// the step queue and the `name` field will be attached to it.
-/// 
+///
 impl TryFrom<StepLoader> for Steps {
     type Error = anyhow::Error;
     fn try_from(value: StepLoader) -> Result<Self> {
