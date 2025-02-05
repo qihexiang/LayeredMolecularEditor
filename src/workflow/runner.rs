@@ -1,9 +1,10 @@
 use anyhow::{anyhow, Context, Result};
 use cached::{proc_macro::cached, SizedCache};
+use fancy_regex::Regex;
 use lmers::layer::{LayerStorageError, SelectMany};
 use lmers::utils::fs::copy_skeleton;
-use nalgebra::{ComplexField, Vector3};
-use fancy_regex::Regex;
+use nalgebra::Vector3;
+use std::collections::BTreeSet;
 use std::fs::File;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
@@ -71,7 +72,7 @@ pub struct FormatOptions {
 #[serde(untagged)]
 pub enum Property3D {
     Distance(SelectOne, SelectOne),
-    Angle(SelectOne, SelectOne, SelectOne)
+    Angle(SelectOne, SelectOne, SelectOne),
 }
 
 impl Property3D {
@@ -84,7 +85,7 @@ impl Property3D {
                 let ba = a.position - b.position;
                 let bc = c.position - b.position;
                 Ok((ba.dot(&bc) / (ba.norm() * bc.norm())).acos())
-            },
+            }
             Self::Distance(a, b) => {
                 let a = a.get_atom(structure).ok_or(a.clone())?;
                 let b = b.get_atom(structure).ok_or(b.clone())?;
@@ -98,7 +99,7 @@ impl Property3D {
 pub struct Retain3DItem {
     min: f64,
     max: f64,
-    target: Property3D
+    target: Property3D,
 }
 
 impl Retain3DItem {
@@ -116,11 +117,11 @@ impl Retain3DItem {
 #[serde(tag = "with")]
 pub enum Runner {
     ManualBreak {
-        filepath: String
+        filepath: String,
     },
     CountBreak {
         filepath: String,
-        times: usize
+        times: usize,
     },
     AppendLayers {
         layers: Vec<Layer>,
@@ -128,7 +129,7 @@ pub enum Runner {
     DistributeLayers(BTreeMap<String, Layer>),
     Substituent {
         address: BTreeMap<String, (SelectOne, SelectOne)>,
-        file_pattern: String,
+        file_pattern: Vec<String>,
     },
     Plugin {
         command: String,
@@ -192,7 +193,13 @@ impl Runner {
                 let regex = Regex::new(&pattern)
                     .with_context(|| format!("Failed to create regex with {pattern}"))?;
                 let mut current_window = current_window.clone();
-                current_window.retain(|k, _| negate ^ regex.is_match(k).with_context(|| "Some error of fancy_regex happend").unwrap());
+                current_window.retain(|k, _| {
+                    negate
+                        ^ regex
+                            .is_match(k)
+                            .with_context(|| "Some error of fancy_regex happend")
+                            .unwrap()
+                });
                 Ok(RunnerOutput::SingleWindow(current_window))
             }
             Self::AppendLayers { layers } => {
@@ -515,7 +522,11 @@ impl Runner {
                 address,
                 file_pattern,
             } => {
-                let matched_files = glob(&file_pattern)?.collect::<Result<Vec<_>, _>>()?;
+                let matched_files = file_pattern
+                    .iter()
+                    .map(|item| Ok(glob(item)?.collect::<Result<Vec<_>, _>>()?))
+                    .collect::<Result<Vec<_>>>()?;
+                let matched_files = matched_files.into_iter().flatten().collect::<BTreeSet<_>>();
                 let substituents = matched_files
                     .into_par_iter()
                     .map(|path| {
@@ -620,21 +631,36 @@ impl Runner {
                 if std::fs::exists(filepath)? {
                     Ok(RunnerOutput::None)
                 } else {
-                    Err(anyhow!("File {} not exists, break. Create it to continue", filepath))
+                    Err(anyhow!(
+                        "File {} not exists, break. Create it to continue",
+                        filepath
+                    ))
                 }
-            },
+            }
             Self::CountBreak { filepath, times } => {
                 let counter: usize = if let Ok(counter) = std::fs::read_to_string(filepath) {
-                    counter.parse().with_context(|| format!("Unable to parse counter file content {} in {}", counter, filepath))?
+                    counter.parse().with_context(|| {
+                        format!(
+                            "Unable to parse counter file content {} in {}",
+                            counter, filepath
+                        )
+                    })?
                 } else {
                     0
                 };
                 let next_counter = counter + 1;
-                std::fs::write(filepath, format!("{}", next_counter)).with_context(|| format!("Failed to write counter information to {}", filepath))?;
+                std::fs::write(filepath, format!("{}", next_counter)).with_context(|| {
+                    format!("Failed to write counter information to {}", filepath)
+                })?;
                 if counter >= *times {
                     Ok(RunnerOutput::None)
                 } else {
-                    Err(anyhow!("Current break times: {}, require break {} times, flag file: {}", counter, times, filepath))
+                    Err(anyhow!(
+                        "Current break times: {}, require break {} times, flag file: {}",
+                        counter,
+                        times,
+                        filepath
+                    ))
                 }
             }
         }

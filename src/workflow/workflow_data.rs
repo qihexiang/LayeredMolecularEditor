@@ -12,19 +12,7 @@ pub type Window = BTreeMap<String, Vec<u64>>;
 pub struct WorkflowData {
     pub base: SparseMolecule,
     pub layers: LayerStorage,
-    pub windows: BTreeMap<String, Window>,
     pub current_window: Window,
-}
-
-impl WorkflowData {
-    pub fn new(base: SparseMolecule, db_path: PathBuf) -> Self {
-        Self {
-            base,
-            layers: LayerStorage::new(db_path),
-            windows: BTreeMap::new(),
-            current_window: BTreeMap::from([("".to_string(), vec![])]),
-        }
-    }
 }
 
 #[derive(Deserialize, Serialize)]
@@ -41,12 +29,6 @@ impl LayerStorage {
             .or(Database::open(&db_path))
             .unwrap();
         Self { db_path, db }
-    }
-
-    pub fn get_config(&self) -> LayerStorageConfig {
-        LayerStorageConfig {
-            db_path: self.db_path.clone(),
-        }
     }
 }
 

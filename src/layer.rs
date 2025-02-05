@@ -5,7 +5,6 @@ use std::{
     ops::RangeInclusive,
 };
 
-use anyhow::Context;
 use bincode::{Decode, Encode};
 use nalgebra::{Isometry3, Point3, Translation3, Vector3};
 use redb::Value;

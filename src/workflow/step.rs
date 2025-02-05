@@ -1,85 +1,19 @@
 use std::{collections::BTreeMap, env::current_dir, fs::File, io::Read};
 
 use anyhow::{anyhow, Context, Result};
-use lazy_static::lazy_static;
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use clap::builder::Str;
 use fancy_regex::Regex;
+use lazy_static::lazy_static;
 use serde::Deserialize;
 use url::Url;
 
-use super::{
-    runner::{cached_read_stack, Runner, RunnerOutput},
-    workflow_data::WorkflowData,
-};
+use super::runner::Runner;
 
 #[derive(Debug, Deserialize)]
 pub struct Step {
     pub from: Option<String>,
     pub name: Option<String>,
-    run: Runner,
-}
-
-impl Step {
-    pub fn execute(self, index: usize, workflow_data: &mut WorkflowData) -> Result<()> {
-        if let Some(from) = self.from {
-            let window = workflow_data
-                .windows
-                .get(&from)
-                .cloned()
-                .with_context(|| format!("Failed to load window with name {}", from))?;
-            workflow_data.current_window = window;
-        }
-        let generated_stacks = self.run.execute(
-            &workflow_data.base,
-            &workflow_data.current_window,
-            &workflow_data.layers,
-        )?;
-
-        let cache_generated_stacks = |generated_stacks: &BTreeMap<String, Vec<u64>>| {
-            generated_stacks
-            .par_iter()
-            .map(|(_, stack_path)| {
-                cached_read_stack(
-                    &workflow_data.base,
-                    &workflow_data.layers,
-                    &stack_path,
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()
-        };
-
-        // Cache for generated stacks before result commit to current window, avoid lazy-computation defer the error.
-        match generated_stacks {
-            RunnerOutput::SingleWindow(generated_stacks) => {
-                cache_generated_stacks(&generated_stacks)?;
-                workflow_data.current_window = generated_stacks;
-            }
-            RunnerOutput::MultiWindow(named_stacks) => {
-                let prefix = self.name.clone().unwrap_or(index.to_string());
-                workflow_data.current_window = BTreeMap::new();
-                for (suffix, generated_stacks) in named_stacks {
-                    cache_generated_stacks(&generated_stacks)?;
-                    workflow_data
-                        .current_window
-                        .extend(generated_stacks.clone());
-                    let name = [prefix.to_string(), suffix].join("_");
-                    workflow_data.windows.insert(name, generated_stacks);
-                }
-            }
-            RunnerOutput::None => {}
-        };
-
-        if let Some(name) = self.name {
-            if workflow_data
-                .windows
-                .insert(name.to_string(), workflow_data.current_window.clone())
-                .is_some()
-            {
-                println!("Over take window named {}", name);
-            }
-        }
-        Ok(())
-    }
+    pub run: Runner,
 }
 
 #[derive(Debug, Deserialize, Default)]
@@ -125,6 +59,8 @@ struct StepLoader {
     run: Option<Runner>,
     #[serde(default)]
     load: Option<String>,
+    #[serde(default)]
+    parameters: BTreeMap<String, String>
 }
 
 lazy_static! {
@@ -172,9 +108,10 @@ impl TryFrom<StepLoader> for Steps {
                 .ends_with("template")
             {
                 println!(
-                    "Loading template {:?} with query string: {:?}",
+                    "Loading template {:?} with query string: {:?} and parameters: {:#?}",
                     filepath,
-                    url.query()
+                    url.query(),
+                    value.parameters
                 );
                 let mut file = File::open(&filepath)
                     .with_context(|| format!("Failed to open target file {:?}", filepath))?;
@@ -182,6 +119,10 @@ impl TryFrom<StepLoader> for Steps {
                 file.read_to_string(&mut content)
                     .with_context(|| anyhow!("Failed to read file {:?}", &filepath))?;
                 for (k, v) in url.query_pairs() {
+                    let k = format!("{{{{ {} }}}}", k);
+                    content = content.replace(&k, &v);
+                }
+                for (k, v) in &value.parameters {
                     let k = format!("{{{{ {} }}}}", k);
                     content = content.replace(&k, &v);
                 }

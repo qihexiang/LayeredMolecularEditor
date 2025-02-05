@@ -1,112 +1,165 @@
 mod workflow;
 
-use std::{
-    fs::File,
-    path::PathBuf,
-};
+use std::{collections::BTreeMap, fs::File, path::PathBuf};
 
 use anyhow::Context;
+use rayon::prelude::*;
 use workflow::{
-    input_data::{WorkflowCheckPoint, WorkflowInput},
-    workflow_data::{LayerStorage, WorkflowData},
+    input_data::WorkflowInput,
+    runner::{cached_read_stack, RunnerOutput},
+    step::Step,
+    workflow_data::{LayerStorage, Window},
 };
 
+use clap::Parser;
+
+/// Start a LME modeling process
+#[derive(Parser, Debug)]
+struct Args {
+    /// Specify the entrypoint file path.
+    ///
+    /// The parent directory of the file will be the working directory
+    #[clap(short = 'i')]
+    input_file: String,
+    /// Specify the checkpoint name for restart.
+    ///
+    /// The LME will find the checkpoint file under `.checkpoint` folder
+    /// in the same directory of the entrypoint file, load the status and
+    /// start from the step after the checkpoint in step sequence.
+    #[clap(short = 'c')]
+    checkpoint: Option<String>,
+}
+
 fn main() {
+    let args = Args::parse();
+    let entrypoint = PathBuf::from(args.input_file);
+    let entrypoint = std::fs::canonicalize(entrypoint)
+        .with_context(|| "Unable to get absolute path of the entrypoint file, does it exists?")
+        .unwrap();
+    let working_directory = entrypoint.parent().expect("Invalid entrypoint file path");
+    std::env::set_current_dir(working_directory).expect(&format!(
+        "Unable to set {:?} as working directory",
+        working_directory
+    ));
+    let entrypoint_filename = entrypoint
+        .file_name()
+        .expect("Invalid entrypoint file path");
     let input: WorkflowInput = serde_yaml::from_reader(
-        File::open("lme_workflow.inp.yaml")
-            .with_context(|| "Failed to open lme_workflow.inp.yaml in current directory")
+        File::open(entrypoint_filename)
+            .with_context(|| {
+                format!(
+                    "Failed to open {:?} in {:?}",
+                    entrypoint_filename, working_directory
+                )
+            })
             .unwrap(),
     )
     .unwrap();
 
     set_path(input.binaries).unwrap();
 
-    let checkpoint = load_checkpoint();
-    let (skip, mut workflow_data) = if let Some(WorkflowCheckPoint {
-        skip,
-        base,
-        layers,
-        windows,
-        current_window,
-    }) = checkpoint
-    {
-        (
-            skip,
-            WorkflowData {
-                base,
-                layers:LayerStorage::try_from(layers).unwrap(),
-                windows,
-                current_window,
-            },
-        )
-    } else {
-        (0, WorkflowData::new(input.base, input.layer_storage.unwrap_or(PathBuf::from(".layer_storage.db"))))
-    };
-
-    let mut checkpoint = WorkflowCheckPoint {
-        skip,
-        base: workflow_data.base.clone(),
-        layers: workflow_data.layers.get_config(),
-        windows: workflow_data.windows.clone(),
-        current_window: workflow_data.current_window.clone(),
-    };
-
-    let mut last_step_name = String::from("start");
-    let mut last_step_index = 0;
-
-    for (index, step) in input.steps.0.into_iter().enumerate().skip(skip) {
-        if let Some(name) = &step.name {
-            last_step_name = name.to_string();
-            last_step_index = index;
-        }
+    let (mut current_window, steps) = if let Some(checkpoint) = &args.checkpoint {
+        let num_of_steps = input.steps.0.len();
+        let steps = input
+            .steps
+            .0
+            .into_iter()
+            .skip_while(|step| step.name.as_ref() != Some(checkpoint))
+            .skip(1)
+            .collect::<Vec<Step>>();
         println!(
-            "Enter step: {}, {} steps after {}, steps after window size: {}",
-            index,
-            index - last_step_index,
-            last_step_name,
-            workflow_data.current_window.len()
+            "Try to start from checkpoint {}, {} steps will be skipped",
+            checkpoint,
+            num_of_steps - steps.len()
         );
-        match step.execute(index, &mut workflow_data) {
-            Ok(_) => {
-                if !input.no_checkpoint {
-                    checkpoint = WorkflowCheckPoint {
-                        skip: index + 1,
-                        base: workflow_data.base.clone(),
-                        layers: workflow_data.layers.get_config(),
-                        windows: workflow_data.windows.clone(),
-                        current_window: workflow_data.current_window.clone(),
-                    };
-                }
+        let checkpoint = PathBuf::from(".checkpoint").join(checkpoint);
+        let checkpoint = File::open(&checkpoint)
+            .with_context(|| format!("Unable to open the checkpoint file {:?}", checkpoint))
+            .unwrap();
+        let checkpoint: Window = serde_json::from_reader(checkpoint)
+            .with_context(|| format!("Failed to deserialize the file of given checkpoint"))
+            .unwrap();
+        (checkpoint, steps)
+    } else {
+        std::fs::create_dir_all(".checkpoint")
+            .with_context(|| "Unable to prepare checkpoint direcotry")
+            .unwrap();
+        (BTreeMap::from([("LME".to_string(), vec![])]), input.steps.0)
+    };
+
+    let num_of_steps = steps.len();
+
+    let layer_storage = LayerStorage::new(PathBuf::from(".checkpoint").join(".layers.db"));
+
+    for (idx, step) in steps.into_iter().enumerate() {
+        if let Some(from) = step.from.as_ref() {
+            let checkpoint = PathBuf::from(".checkpoint").join(from);
+            let checkpoint = File::open(&checkpoint)
+                .with_context(|| format!("Unable to open the checkpoint file {:?}", checkpoint))
+                .unwrap();
+            current_window = serde_json::from_reader(checkpoint)
+                .with_context(|| {
+                    format!("Failed to deserialize the checkpoint file for the {}", from)
+                })
+                .unwrap();
+        };
+        println!(
+            "Step {}/{}, input {} structures",
+            idx + 1,
+            num_of_steps,
+            current_window.len()
+        );
+        let result = step
+            .run
+            .execute(&input.base, &current_window, &layer_storage)
+            .unwrap();
+
+        let cache_generated_stacks = |generated_stacks: &BTreeMap<String, Vec<u64>>| {
+            generated_stacks
+                .par_iter()
+                .map(|(_, stack_path)| cached_read_stack(&input.base, &layer_storage, &stack_path))
+                .collect::<Result<Vec<_>, _>>()
+        };
+
+        match result {
+            RunnerOutput::None => {}
+            RunnerOutput::SingleWindow(window) => {
+                cache_generated_stacks(&window).unwrap();
+                current_window = window;
             }
-            Err(err) => {
-                if !input.no_checkpoint {
-                    println!("Error. Saving checkpoint file");
-                    dump_checkpoint(&checkpoint);
+            RunnerOutput::MultiWindow(windows) => {
+                if let Some(name) = step.name.as_ref() {
+                    for (window_name, window) in &windows {
+                        cache_generated_stacks(window).unwrap();
+                        let name = format!("{}_{}", name, window_name);
+                        let checkpoint = File::create(PathBuf::from(".checkpoint").join(&name))
+                            .with_context(|| format!("Failed to create checkpoint {}", name))
+                            .unwrap();
+                        serde_json::to_writer(checkpoint, &window)
+                            .with_context(|| {
+                                format!("Failed to serialize the checkpoint information")
+                            })
+                            .unwrap();
+                        println!("Checkpoint {} created", &name);
+                    }
                 }
-                panic!("{:#?}", err)
+                current_window = BTreeMap::new();
+                for (_, window) in windows {
+                    current_window.extend(window);
+                }
             }
         }
+        if let Some(name) = step.name {
+            let checkpoint = File::create(PathBuf::from(".checkpoint").join(&name))
+                .with_context(|| format!("Failed to create checkpoint {}", name))
+                .unwrap();
+            serde_json::to_writer(checkpoint, &current_window)
+                .with_context(|| format!("Failed to serialize the checkpoint information"))
+                .unwrap();
+            println!("Checkpoint {} created", &name);
+        }
     }
-
-    if !input.no_checkpoint {
-        println!("Finished. Saving checkpoint file");
-        dump_checkpoint(&checkpoint);
-    }
-
     println!("finished");
-}
-
-fn load_checkpoint() -> Option<WorkflowCheckPoint> {
-    let workflow_data_file = File::open("lme_workflow.chk.data").ok()?;
-    Some(
-        serde_json::from_reader(
-            zstd::Decoder::new(workflow_data_file)
-                .with_context(|| "Failed to create zstd decompress pipe")
-                .unwrap(),
-        )
-        .with_context(|| "Unable to deserialize lme_workflow.chk.data, it might be broken")
-        .unwrap(),
-    )
 }
 
 fn set_path(user_specified_paths: Vec<PathBuf>) -> anyhow::Result<()> {
@@ -124,21 +177,4 @@ fn set_path(user_specified_paths: Vec<PathBuf>) -> anyhow::Result<()> {
     let paths = std::env::join_paths(paths)?;
     std::env::set_var("PATH", paths);
     Ok(())
-}
-
-fn dump_checkpoint(checkpoint: &WorkflowCheckPoint) {
-    serde_json::to_writer(
-        zstd::Encoder::new(
-            File::create("lme_workflow.chk.data")
-                .with_context(|| "Unable to create lme_workflow.chk.data")
-                .unwrap(),
-            9,
-        )
-        .with_context(|| "Unable to create zstd compress pipe")
-        .unwrap()
-        .auto_finish(),
-        checkpoint,
-    )
-    .with_context(|| "Unable to serialize lme_workflow.chk.data")
-    .unwrap()
 }

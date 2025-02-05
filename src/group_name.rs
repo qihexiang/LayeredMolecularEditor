@@ -31,13 +31,13 @@ impl GroupName {
         self.data().iter().map(|(_, r)| r).collect()
     }
 
-    pub fn get_left<'a>(&'a self, left: &'a String) -> impl Iterator<Item = &usize> {
+    pub fn get_left<'a>(&'a self, left: &'a String) -> impl Iterator<Item = &'a usize> {
         self.data()
             .iter()
             .filter_map(move |(l, r)| if l == left { Some(r) } else { None })
     }
 
-    pub fn get_right<'a>(&'a self, right: &'a usize) -> impl Iterator<Item = &String> {
+    pub fn get_right<'a>(&'a self, right: &'a usize) -> impl Iterator<Item = &'a String> {
         self.data()
             .iter()
             .filter_map(move |(l, r)| if r == right { Some(l) } else { None })
