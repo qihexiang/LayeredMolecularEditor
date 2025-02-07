@@ -28,6 +28,13 @@ struct Args {
     /// start from the step after the checkpoint in step sequence.
     #[clap(short = 'c')]
     checkpoint: Option<String>,
+    /// Speicify the stop before a checkpoint/bookmark
+    /// 
+    /// For a normal step without `load` property, the LME won't execute the step,
+    /// but for step with property, the steps in `load` will be executed and then 
+    /// stopped.
+    #[clap(short = 's')]
+    stop_at: Option<String>,
 }
 
 fn main() {
@@ -85,6 +92,24 @@ fn main() {
             .with_context(|| "Unable to prepare checkpoint direcotry")
             .unwrap();
         (BTreeMap::from([("LME".to_string(), vec![])]), input.steps.0)
+    };
+
+    let steps = if let Some(stop_at) = args.stop_at {
+        let current_steps = steps.len();
+        let steps = steps
+            .into_iter()
+            .take_while(|step| {
+                step.bookmark.as_ref() != Some(&stop_at) && step.name.as_ref() != Some(&stop_at)
+            })
+            .collect::<Vec<_>>();
+        println!(
+            "Will stop before checkpoint/bookmark {}, {} steps won't execute",
+            stop_at,
+            current_steps - steps.len()
+        );
+        steps
+    } else {
+        steps
     };
 
     let num_of_steps = steps.len();

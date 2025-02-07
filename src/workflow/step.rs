@@ -1,7 +1,6 @@
 use std::{collections::BTreeMap, env::current_dir, fs::File, io::Read};
 
 use anyhow::{anyhow, Context, Result};
-use clap::builder::Str;
 use fancy_regex::Regex;
 use lazy_static::lazy_static;
 use serde::Deserialize;
@@ -13,6 +12,7 @@ use super::runner::Runner;
 pub struct Step {
     pub from: Option<String>,
     pub name: Option<String>,
+    pub bookmark: Option<String>,
     pub run: Runner,
 }
 
@@ -56,11 +56,13 @@ struct StepLoader {
     #[serde(default)]
     name: Option<String>,
     #[serde(default)]
+    bookmark: Option<String>,
+    #[serde(default)]
     run: Option<Runner>,
     #[serde(default)]
     load: Option<String>,
     #[serde(default)]
-    parameters: BTreeMap<String, String>
+    parameters: BTreeMap<String, String>,
 }
 
 lazy_static! {
@@ -83,6 +85,11 @@ impl TryFrom<StepLoader> for Steps {
             from: value.from,
             name: if value.load.is_none() {
                 value.name.clone()
+            } else {
+                None
+            },
+            bookmark: if value.load.is_none() {
+                value.bookmark.clone()
             } else {
                 None
             },
@@ -139,6 +146,7 @@ impl TryFrom<StepLoader> for Steps {
                 steps.push(Step {
                     from: None,
                     name: value.name,
+                    bookmark: value.bookmark,
                     run: Runner::default(),
                 });
             }
