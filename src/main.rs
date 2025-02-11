@@ -1,13 +1,20 @@
 mod workflow;
 
-use std::{collections::BTreeMap, fs::File, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    default,
+    fs::File,
+    path::PathBuf,
+};
 
 use anyhow::Context;
+use nalgebra::storage;
 use rayon::prelude::*;
+use redb::Database;
 use workflow::{
     input_data::WorkflowInput,
     runner::{cached_read_stack, RunnerOutput},
-    step::Step,
+    step::{self, Step},
     workflow_data::{LayerStorage, Window},
 };
 
@@ -29,12 +36,18 @@ struct Args {
     #[clap(short = 'c')]
     checkpoint: Option<String>,
     /// Speicify the stop before a checkpoint/bookmark
-    /// 
+    ///
     /// For a normal step without `load` property, the LME won't execute the step,
-    /// but for step with property, the steps in `load` will be executed and then 
+    /// but for step with property, the steps in `load` will be executed and then
     /// stopped.
     #[clap(short = 's')]
     stop_at: Option<String>,
+    /// Display details of the step before execute it.
+    #[clap(long)]
+    verbose: bool,
+    /// Remove unused layers in the on-disk database each time create a checkpoint.
+    #[clap(long)]
+    clean: bool,
 }
 
 fn main() {
@@ -62,6 +75,13 @@ fn main() {
             .unwrap(),
     )
     .unwrap();
+
+    let checkpoint_list = input
+        .steps
+        .0
+        .iter()
+        .filter_map(|step| step.name.as_ref().map(|item| item.to_string()))
+        .collect::<Vec<_>>();
 
     set_path(input.binaries).unwrap();
 
@@ -134,6 +154,9 @@ fn main() {
             num_of_steps,
             current_window.len()
         );
+        if args.verbose {
+            println!("{:#?}", step)
+        }
         let result = step
             .run
             .execute(&input.base, &current_window, &layer_storage)
@@ -184,6 +207,9 @@ fn main() {
             println!("Checkpoint {} created", &name);
         }
     }
+    if args.clean {
+        clean_unused_layers(&checkpoint_list, &layer_storage);
+    }
     println!("finished");
 }
 
@@ -202,4 +228,31 @@ fn set_path(user_specified_paths: Vec<PathBuf>) -> anyhow::Result<()> {
     let paths = std::env::join_paths(paths)?;
     std::env::set_var("PATH", paths);
     Ok(())
+}
+
+fn clean_unused_layers(checkpoint_list: &Vec<String>, storage: &LayerStorage) {
+    let checkpoints = checkpoint_list
+        .iter()
+        .filter_map(|checkpoint_name| -> Option<Window> {
+            let checkpoint = PathBuf::from(".checkpoint").join(checkpoint_name);
+            let checkpoint = File::open(checkpoint).ok();
+            if let Some(checkpoint) = checkpoint {
+                Some(
+                    serde_json::from_reader(checkpoint)
+                        .with_context(|| {
+                            format!("checkpoint {} is unable to load", checkpoint_name)
+                        })
+                        .unwrap(),
+                )
+            } else {
+                None
+            }
+        });
+    let mut retains = BTreeSet::new();
+    for checkpoint in checkpoints {
+        for structure in checkpoint.values() {
+            retains.extend(structure.iter().copied());
+        }
+    }
+    storage.retain(&retains);
 }

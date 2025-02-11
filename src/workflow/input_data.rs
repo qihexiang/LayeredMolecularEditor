@@ -12,10 +12,6 @@ pub struct WorkflowInput {
     #[serde(default)]
     pub binaries: Vec<PathBuf>,
     #[serde(default)]
-    pub no_checkpoint: bool,
-    #[serde(default)]
-    pub layer_storage: Option<PathBuf>,
-    #[serde(default)]
     pub base: SparseMolecule,
     pub steps: Steps,
 }

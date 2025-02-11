@@ -1,6 +1,10 @@
 use lmers::{layer::Layer, sparse_molecule::SparseMolecule};
 use redb::{Database, ReadableTableMetadata, TableDefinition};
-use std::{collections::BTreeMap, ops::Range, path::PathBuf};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    ops::Range,
+    path::PathBuf,
+};
 
 const LAYER_TABLE: TableDefinition<u64, Layer> = TableDefinition::new("layer_table");
 
@@ -29,6 +33,15 @@ impl LayerStorage {
             .or(Database::open(&db_path))
             .unwrap();
         Self { db_path, db }
+    }
+
+    pub fn retain(&self, retains: &BTreeSet<u64>) {
+        let writer = self.db.begin_write().unwrap();
+        {
+            let mut table = writer.open_table(LAYER_TABLE).unwrap();
+            table.retain(|k, _| retains.contains(&k)).unwrap();
+        }
+        writer.commit().unwrap();
     }
 }
 
