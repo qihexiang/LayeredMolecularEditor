@@ -1,0 +1,15 @@
+- run: 
+    with: Calculation
+    working_directory: {{ output_directory }}
+    skeleton: {{ __skeleton }}
+    pre_format: 
+      format: mol2
+      openbabel: true
+      export_map: true
+    pre_filename: input.mol2
+    redirect_to:
+      replace: {{ __redirect_to_prelace }}
+    program: obminimize.py
+    args: [uff, mol2, input.mol2, {{ output_format }}, {{ output_filename }}, {{ constraints_file }}, {{ max_iter }}]
+    stdout: uff_output.log
+    stderr: uff_output.err

@@ -1,0 +1,7 @@
+!PAL8 B3LYP D3BJ DEF2-SVP DEF2/J FREQ HIRSHFELD
+
+%Method
+  WriteJSONPropertyfile True
+End
+
+* XYZFILE 0 1 R.xyz

@@ -1,0 +1,8 @@
+!PAL8 NEB-TS XTB2 FREQ
+
+%NEB
+    NEB_END_XYZFILE "P.xyz"
+    NEB_TS_XYZFILE "TS.xyz"
+END
+
+* XYZFILE 0 1 R.xyz

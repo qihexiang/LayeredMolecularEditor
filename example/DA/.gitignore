@@ -1,0 +1,13 @@
+/*
+!.gitignore
+!lme_workflow.inp.yaml
+!output/
+!*.constraints
+!bin/
+!skeleton/
+!substituent/
+!calculation/
+!includes/
+!*.json
+!ts.mol2
+!ts.yaml

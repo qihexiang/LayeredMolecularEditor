@@ -1,0 +1,7 @@
+!PAL16 B3LYP def2-SVPD HIRSHFELD
+
+%Method
+  WriteJSONPropertyfile True
+End
+
+* XYZFILE 0 1 R.xyz

@@ -1,0 +1,13 @@
+@<TRIPOS>MOLECULE
+OH
+ 3 2 0 0 0
+SMALL
+GASTEIGER
+
+@<TRIPOS>ATOM
+      1 H           0.0000    0.0000    0.0000 H       1  UNL11       0.0000
+      2 O           0.9690   -0.0000   -0.0000 O.3     1  UNL11       0.0000
+      3 H           1.2032    0.8611    0.3779 H       1  UNL11       0.0000
+@<TRIPOS>BOND
+     1     1     2    1
+     2     2     3    1

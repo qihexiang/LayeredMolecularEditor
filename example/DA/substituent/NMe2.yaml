@@ -1,0 +1,154 @@
+atoms:
+- element: 1
+  position:
+  - 0.0
+  - 0.0
+  - 0.0
+- element: 7
+  position:
+  - 1.0194128800441946
+  - 2.2688014661431666e-15
+  - 2.3142078531268595e-14
+- element: 6
+  position:
+  - 1.4989913507211796
+  - -1.2605656041709257
+  - -0.5505091625434424
+- element: 6
+  position:
+  - 1.4990136184406133
+  - 1.1267344012900267
+  - -0.7890091068417296
+- element: 1
+  position:
+  - 1.1292352809492627
+  - -2.089646311306187
+  - 0.060747624676887414
+- element: 1
+  position:
+  - 2.592777128620769
+  - -1.3061291189938598
+  - -0.5404370137373701
+- element: 1
+  position:
+  - 1.1432862119120097
+  - -1.412341344952688
+  - -1.5749017185174188
+- element: 1
+  position:
+  - 1.129273940456879
+  - 2.060453698174699
+  - -0.3538522786180688
+- element: 1
+  position:
+  - 1.1433089406811412
+  - 1.0729586606213324
+  - -1.823101661662411
+- element: 1
+  position:
+  - 2.5928002007247812
+  - 1.1733708866643604
+  - -0.7881369560235252
+bonds:
+- - null
+  - 1.0
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+- - 1.0
+  - null
+  - 1.0
+  - 1.0
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+- - null
+  - 1.0
+  - null
+  - null
+  - 1.0
+  - 1.0
+  - 1.0
+  - null
+  - null
+  - null
+- - null
+  - 1.0
+  - null
+  - null
+  - null
+  - null
+  - null
+  - 1.0
+  - 1.0
+  - 1.0
+- - null
+  - null
+  - 1.0
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+- - null
+  - null
+  - 1.0
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+- - null
+  - null
+  - 1.0
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+- - null
+  - null
+  - null
+  - 1.0
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+- - null
+  - null
+  - null
+  - 1.0
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+- - null
+  - null
+  - null
+  - 1.0
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+ids: {}
+groups: []

@@ -1,0 +1,108 @@
+atoms:
+- element: 1
+  position:
+  - 0.0
+  - 0.0
+  - 0.0
+- element: 6
+  position:
+  - 1.1013194041693808
+  - 5.689893001203927e-16
+  - 1.6653345369377348e-16
+- element: 8
+  position:
+  - 1.7900143614438728
+  - -0.9694043986947365
+  - -0.2725320304404255
+- element: 8
+  position:
+  - 1.5407798260667174
+  - 1.2349387781077272
+  - 0.3476502292701826
+- element: 6
+  position:
+  - 2.9634727197615454
+  - 1.3541770912710103
+  - 0.3829260695041508
+- element: 1
+  position:
+  - 3.2094704648065715
+  - 2.3800004978167477
+  - 0.6712314250140009
+- element: 1
+  position:
+  - 3.3901398230751365
+  - 1.1610717919949889
+  - -0.6064010585690196
+- element: 1
+  position:
+  - 3.3877159758334607
+  - 0.6740500820846378
+  - 1.1281630794900337
+bonds:
+- - null
+  - 1.0
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+- - 1.0
+  - null
+  - 2.0
+  - 1.0
+  - null
+  - null
+  - null
+  - null
+- - null
+  - 2.0
+  - null
+  - null
+  - null
+  - null
+  - null
+  - null
+- - null
+  - 1.0
+  - null
+  - null
+  - 1.0
+  - null
+  - null
+  - null
+- - null
+  - null
+  - null
+  - 1.0
+  - null
+  - 1.0
+  - 1.0
+  - 1.0
+- - null
+  - null
+  - null
+  - null
+  - 1.0
+  - null
+  - null
+  - null
+- - null
+  - null
+  - null
+  - null
+  - 1.0
+  - null
+  - null
+  - null
+- - null
+  - null
+  - null
+  - null
+  - 1.0
+  - null
+  - null
+  - null
+ids: {}
+groups: []
