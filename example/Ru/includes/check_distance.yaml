@@ -1,0 +1,13 @@
+- run:
+    with: Calculation
+    working_directory: A2_check
+    pre_format:
+      format: xyz
+      openbabel: true
+      export_map: true
+    pre_filename: input.xyz
+    ignore_failed: true
+    program: check_distance.py
+    args: [xyz, input.xyz, "HRu", "HC", "1.0", "4.0"]
+    post_file: [xyz, input.xyz]
+    stderr: reason.log

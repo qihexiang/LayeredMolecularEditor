@@ -1,0 +1,11 @@
+- run:
+    with: Calculation
+    working_directory: {{ output_directory }}
+    pre_format: 
+      format: nothing
+    pre_filename: _
+    program: group_atoms.py
+    args: [{{ item_name }}.inp, {{ replace }}, {{ split }},{{ group_name }}, {{ item_name }}.map.json, "false"]
+    redirect_to:
+      replace: {{ __redirect_to_prelace }}
+    stderr: group_{{ item_name }}_{{ group_name }}.err

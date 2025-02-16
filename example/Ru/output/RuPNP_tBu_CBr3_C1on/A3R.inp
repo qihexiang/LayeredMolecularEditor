@@ -1,0 +1,8 @@
+!PAL8 XTB2 OPT NUMFREQ
+
+%Method
+  WriteJSONPropertyfile True
+End
+
+* XYZFILE 0 1 A3R.xyz
+

@@ -1,0 +1,18 @@
+- run:
+    with: Substituent
+    address:
+      R11g: [P1, R11]
+      R12g: [P1, R12]
+    file_pattern: substituent/tBu.lme
+- run:
+    with: Substituent
+    address:
+      R21g: [P2, R21]
+      R22g: [P2, R22]
+    file_pattern: substituent/*.lme
+- run:
+    with: Retain
+    pattern: RuPNP_((tBu_.*)|(.*_tBu))
+- load: ./includes/ff.template.yaml?ff=uff&working_directory=A1&constraints_file=../../constraints/A1.json&max_iter="2500"
+- name: A1
+  load: ./includes/xtb.template.yaml?working_directory=A1_xtb&charge=0&uhf=0

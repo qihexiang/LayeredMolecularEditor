@@ -1,0 +1,18 @@
+@<TRIPOS>MOLECULE
+NO2
+ 4 3 0 0 0
+SMALL
+GASTEIGER
+
+@<TRIPOS>ATOM
+      1 H           0.0000    0.0000    0.0000 H       1  UNL11       0.0000
+      2 N           0.9811    0.0000    0.0000 N.pl3   1  UNL11       1.0000
+      3 O           1.5251   -1.0786   -0.2495 O.2     1  UNL11       0.0000
+      4 O           1.5251    1.0786    0.2495 O.2     1  UNL11      -1.0000
+@<TRIPOS>UNITY_ATOM_ATTR
+4 1
+charge -1
+@<TRIPOS>BOND
+     1     1     2    1
+     2     2     3    2
+     3     2     4    1

@@ -1,0 +1,13 @@
+- run:
+    with: Calculation
+    working_directory: {{ working_directory }}
+    pre_format: 
+      format: mol2
+      openbabel: true
+      export_map: true
+    pre_filename: input.mol2
+    program: obminimize.py
+    args: [{{ ff }}, mol2, input.mol2, mol2, output.mol2, {{ constraints_file }}, {{ max_iter }}]
+    post_file: [mol2, output.mol2]
+    stdout: ff.out
+    stderr: ff.err

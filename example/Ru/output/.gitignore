@@ -1,0 +1,6 @@
+*/*
+!*/*.inp
+!*/*.xyz
+*_trj.xyz
+*_converged.xyz
+*_im*.xyz

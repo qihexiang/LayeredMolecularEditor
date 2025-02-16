@@ -1,0 +1,13 @@
+- run: 
+    with: Calculation
+    working_directory: {{ output_directory }}
+    skeleton: {{ __skeleton }}
+    pre_format: 
+      format: {{ output_format }}
+      openbabel: true
+      export_map: true
+    pre_filename: {{ output_filename }}
+    redirect_to:
+      replace: {{ __redirect_to_prelace }}
+    stdout: uff_output.log
+    stderr: uff_output.err

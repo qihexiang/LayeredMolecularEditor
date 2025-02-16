@@ -1,9 +1,0 @@
-{
-    "ignore": [],
-    "atom": [],
-    "distance": [
-        ["protonation_A1_H1", "O1", null]
-    ],
-    "angle": [],
-    "torsion": []
-}

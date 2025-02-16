@@ -1,0 +1,1 @@
+{"atoms":[{"element":1,"position":[1.0432,-0.048,0.0874],"formal_charge":0.1537},{"element":6,"position":[2.1084,-0.048,0.0874],"formal_charge":0.0464},{"element":7,"position":[3.2683,-0.048,0.0874],"formal_charge":-0.2001}],"bonds":[[null,1.0,null],[1.0,null,3.0],[null,3.0,null]],"ids":null,"groups":null}

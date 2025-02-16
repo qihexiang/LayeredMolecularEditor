@@ -1,0 +1,70 @@
+- from: A1
+  run: 
+    with: DistributeLayers
+    C1on:
+      type: IdMap
+      HC: C1Hon
+      HRu: H1
+      CAtom: C1
+      CNeighbor: C3
+    # C2on:
+    #   type: IdMap
+    #   HC: C2Hon
+    #   HRu: H1
+    #   CAtom: C2
+    #   CNeighbor: C4
+    # C1down:
+    #   type: IdMap
+    #   HC: C1Hdown
+    #   HRu: H2
+    #   CAtom: C1
+    #   CNeighbor: C2
+    # C2down:
+    #   type: IdMap
+    #   HC: C2Hdown
+    #   HRu: H2
+    #   CAtom: C2
+    #   CNeighbor: C4
+- load: ./includes/check_distance.yaml
+- run:
+    with: AppendLayers
+    layers:
+    - type: Append
+      name: S1
+      data: ./S1.lme
+    - type: XYAlign
+      o: HRu
+      x: HC
+      y: Ru
+    - type: XYAlign
+      o: S1_center
+      x: S1_O
+      y: S1_Me0
+      select: S1
+    - type: Rotation
+      angle: 90.
+      degree: true
+      select: S1
+- run:
+    with: DistributeLayers
+    R:
+      type: Transparent
+    S:
+      type: Rotation
+      angle: 180.
+      degree: true
+      select: S1
+- run:
+    with: AppendLayers
+    layers:
+    - type: Translation
+      select: S1
+      vector: [1., -1.5, 0.]
+- name: A2
+  load: ./includes/ff.template.yaml?ff=uff&working_directory=A2&constraints_file=../../constraints/A2.json&max_iter="2500"
+- from: A2
+  load: ./includes/split.template.yaml?split=R 
+- load: ./includes/output.template.yaml?output_directory=output&output_format=xyz&output_filename=A2R.xyz&__skeleton=./skeleton
+- from: A2
+  load: ./includes/split.template.yaml?split=S
+- load: ./includes/output.template.yaml?output_directory=output&output_format=xyz&output_filename=A2S.xyz

@@ -1,0 +1,8 @@
+- run:
+    with: CheckPoint
+- run:
+    with: Retain
+    pattern: .*_{{ split }}
+- run:
+    with: Rename
+    replace: ["_{{ split }}", ""]

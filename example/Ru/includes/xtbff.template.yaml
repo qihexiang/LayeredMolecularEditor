@@ -1,0 +1,25 @@
+- run:
+    with: Calculation
+    working_directory: {{ working_directory }}
+    pre_format: 
+      format: lme_json
+    pre_filename: input.lme.json
+    program: xcontrol.py
+    args: [input.lme.json, x_control]
+    stderr: xcontrol.err
+- run:
+    with: Calculation
+    working_directory: {{ working_directory }}
+    pre_format: 
+      format: xyz
+      openbabel: true
+      export_map: true
+    pre_filename: input.xyz
+    serial_mode: true
+    program: xtb
+    args: [input.xyz, --input, xcontrol, --gfnff, --opt, --charge, "{{ charge }}", --uhf, "{{ uhf }}", --wrtopo, nb]
+    envs:
+      OMP_NUM_THREAD: '8'
+    post_file: [xyz, xtbopt.xyz]
+    stdout: xtbff.out
+    stderr: xtbff.err

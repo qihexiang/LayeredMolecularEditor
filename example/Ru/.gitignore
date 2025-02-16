@@ -1,0 +1,16 @@
+/*
+!.gitignore
+!collection.ipynb
+!lme_workflow.inp.yaml
+!template.lme
+!template.xyz
+!S1.lme
+!S1.xyz
+!substituent/
+!stages/
+!skeleton/
+!includes/
+!constraints/
+!bin/
+!output/
+!A1_xtb/

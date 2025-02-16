@@ -1,0 +1,27 @@
+- run:
+    with: Calculation
+    working_directory: {{ working_directory }}
+    skeleton: ./xtb_skeleton
+    pre_format: 
+      format: nothing
+    pre_filename: _
+    program: group_atoms.py
+    args: [xcontrol, XTB, ",", XTB, input.map.json, "true"]
+    stderr: xcontrol_generate.err
+- run:
+    with: Calculation
+    working_directory: {{ working_directory }}
+    pre_format: 
+      format: xyz
+      openbabel: true
+      export_map: true
+    pre_filename: input.xyz
+    serial_mode: true
+    ignore_error: true
+    program: xtb
+    args: [--verbose, input.xyz, --gfn, '2', --iterations, '500', --opt, sloppy, --charge, "{{ charge }}", --uhf, "{{ uhf }}", --input, xcontrol]
+    envs:
+      OMP_NUM_THREAD: '8'
+    post_file: [xyz, xtbopt.xyz]
+    stdout: xtb.out
+    stderr: xtb.err

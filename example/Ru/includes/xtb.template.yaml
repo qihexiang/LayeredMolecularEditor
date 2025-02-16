@@ -1,0 +1,16 @@
+- run:
+    with: Calculation
+    working_directory: {{ working_directory }}
+    pre_format: 
+      format: xyz
+      openbabel: true
+      export_map: true
+    pre_filename: input.xyz
+    serial_mode: true
+    program: xtb
+    args: [input.xyz, --gfn, '2', --ohess, --opt, --charge, "{{ charge }}", --uhf, "{{ uhf }}"]
+    envs:
+      OMP_NUM_THREAD: '16'
+    post_file: [xyz, xtbopt.xyz]
+    stdout: xtb.out
+    stderr: xtb.err

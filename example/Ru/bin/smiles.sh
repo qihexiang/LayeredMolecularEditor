@@ -1,0 +1,6 @@
+#!/bin/bash
+
+INPUT_FILENAME=$1
+OUTPUT_FILENAME=$2
+
+obabel $INPUT_FILENAME -osmi >> $OUTPUT_FILENAME

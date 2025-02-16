@@ -1,0 +1,39 @@
+- from: A2
+  run:
+    with: AppendLayers
+    layers:
+    - type: SetBond
+      bonds:
+      - [S1_center, HRu, 1.0]
+      - [S1_O, HC, 1.0]
+      - [Ru, HRu, 0.]
+      - [CAtom, HC, 0.]
+      - [S1_center, S1_O, 1.0]
+      - [N1, CNeighbor, 1.0]
+      - [CNeighbor, CAtom, 2.0]
+    - type: XYAlign
+      select: null
+      o: S1_center
+      x: HRu
+      y: S1_O
+    - type: TranslationTo
+      select: [HRu]
+      target: HRu
+      position: [1., 0., 0.]
+    - type: XYAlign
+      select: null
+      o: S1_O
+      x: HC
+      y: S1_center
+    - type: TranslationTo
+      select: [HC]
+      target: HC
+      position: [1., 0., 0.]
+- name: A3
+  # load: ./includes/ff.template.yaml?ff=uff&working_directory=A2&constraints_file=../../constraints/A2.json&max_iter="2500"
+- from: A3
+  load: ./includes/split.template.yaml?split=R 
+- load: ./includes/output.template.yaml?output_directory=output&output_format=xyz&output_filename=A3R.xyz
+- from: A3
+  load: ./includes/split.template.yaml?split=S
+- load: ./includes/output.template.yaml?output_directory=output&output_format=xyz&output_filename=A3S.xyz

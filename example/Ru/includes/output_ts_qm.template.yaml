@@ -1,0 +1,2 @@
+- load: ./includes/output.template.yaml?output_directory=output_xtb&output_format=xyz&output_filename=TSA{{ current }}{{ chiral }}_{{ next }}{{ chiral }}.xyz&__redirect_to_prelace=[RuPNP_, ""]
+- load: ./includes/group_atoms.template.yaml?output_directory=output_xtb&replace=QMATOMS&&item_name=TSA{{ current }}{{ chiral }}_{{ next }}{{ chiral }}&split=" "&group_name=QM&__redirect_to_prelace=[RuPNP_, ""]
