@@ -1,0 +1,7 @@
+!PAL8 B3LYP DEF2-SVPD Hirshfeld
+
+%Method
+  WriteJSONPropertyfile True
+End
+
+* XYZFILE 0 1 NEB_reactant.xyz

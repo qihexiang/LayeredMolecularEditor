@@ -1,0 +1,40 @@
+base:
+- name: S1
+  capacity: 16
+- name: S2
+  capacity: 10
+
+steps:
+- load: ./includes/A1.yaml
+- load: ./includes/A1_H3O.yaml
+- load: ./includes/A2_H2O.yaml
+- load: ./includes/A2.yaml
+- load: ./includes/A3_MeOH.yaml
+- load: ./includes/A3.yaml
+- load: ./includes/A3_S2.yaml
+- load: ./includes/A4.yaml
+- load: ./includes/A4_H2O.yaml
+- load: ./includes/A5_H3O.yaml
+- load: ./includes/A5.yaml
+- load: ./includes/A5_H3O_A6.yaml
+- load: ./includes/A6_H2O.yaml
+- load: ./includes/A6.yaml
+- load: ./includes/A7_MeOH.yaml
+- load: ./includes/A7.yaml
+- load: ./includes/A7_H2O.yaml
+- load: ./includes/A8_H3O.yaml
+# The above steps encompass the reaction process of synthesizing the Claisen rearrangement substrate
+# from the feedstock, but only the Claisen rearrangement step was calculated in this example
+- load: ./includes/A8.yaml
+- load: ./includes/TSA8_9.yaml
+- load: ./includes/A9.yaml
+- from: A8
+  run:
+    runner: CheckPoint
+    options:
+- load: ./includes/gasteiger_charges.yaml
+- from: A9
+  run:
+    runner: CheckPoint
+    options:
+- load: ./includes/gasteiger_charges.yaml

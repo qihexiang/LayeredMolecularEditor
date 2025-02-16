@@ -1,0 +1,14 @@
+- run:
+    runner: Calculation
+    options:
+      working_directory: ./charges
+      pre_format: 
+        format: mol2
+        openbabel: true
+        regex: ["/@<TRIPOS>UNITY_ATOM_ATTR/,/@<TRIPOS>/ {/@<TRIPOS>/!d}", /@<TRIPOS>UNITY_ATOM_ATTR/d]
+        export_map: true
+      pre_filename: input.mol2
+      program: gasteiger_charges.py
+      args: [../../charges.json, input.mol2, input.map.json, charges.csv]
+      stdout: charges_out
+      stderr: charges_err

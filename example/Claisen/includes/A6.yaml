@@ -1,0 +1,14 @@
+# Remove water from A6_H2O
+- from: A6_H2O
+  run:
+    runner: Rename
+    options:
+      replace: [A6_H2O, A6]
+- name: A6
+  run:
+    runner: AppendLayers
+    options:
+    - layer: RemoveAtoms
+      arguments:
+        includes: [water]
+# - load: ./includes/output.yaml

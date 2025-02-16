@@ -1,0 +1,28 @@
+# Remove H3O, get A8 structure
+- from: A8_H3O
+  run:
+    runner: Rename
+    options:
+      replace: [A8_H3O, A8]
+- name: A8
+  run: 
+    runner: AppendLayers
+    options:
+    - layer: RemoveAtoms
+      arguments: 
+        includes: [water2, [H2]]
+- run:
+    runner: Calculation
+    options:
+      working_directory: ./output
+      redirect_to:
+        replace: [A8, TSA8_9]
+      pre_format:
+        format: xyz
+        openbabel: true
+        export_map: true
+      pre_filename: R.xyz
+      stdout: XYZ_OUT
+      stderr: XYZ_ERR
+- load: ./includes/output_to_smiles.yaml
+- load: ./includes/gasteiger_charges.yaml

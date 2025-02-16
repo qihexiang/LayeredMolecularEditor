@@ -1,0 +1,14 @@
+- run:
+    runner: Calculation
+    options:
+      working_directory: ./uff
+      pre_format: 
+        format: mol2
+        openbabel: true
+        export_map: true
+      pre_filename: input.mol2
+      program: obminimize.py
+      args: [UFF, mol2, input.mol2, mol2, output.mol2, ../../A1.constraints, "1000"]
+      post_file: [mol2, output.mol2]
+      stdout: GAFF_out
+      stderr: GAFF_err

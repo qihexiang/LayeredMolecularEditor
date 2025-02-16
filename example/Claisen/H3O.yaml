@@ -1,0 +1,42 @@
+atoms:
+- element: 8
+  position:
+  - 1.0166
+  - 0.0367
+  - -0.0775
+- element: 1
+  position:
+  - 2.0069
+  - 0.0677
+  - -0.0941
+- element: 1
+  position:
+  - 0.6698
+  - 0.0354
+  - 0.8508
+- element: 1
+  position:
+  - 0.6698
+  - -0.7343
+  - -0.5946
+bonds:
+- - null
+  - 1.0
+  - 1.0
+  - 1.0
+- - 1.0
+  - null
+  - null
+  - null
+- - 1.0
+  - null
+  - null
+  - null
+- - 1.0
+  - null
+  - null
+  - null
+ids:
+  H1: 1
+  O1: 0
+groups: null

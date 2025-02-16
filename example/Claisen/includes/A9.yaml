@@ -1,0 +1,36 @@
+# Final state
+- from: A8
+  run:
+    runner: Rename
+    options:
+      replace: [A8, A9]
+- run:
+    runner: AppendLayers
+    options:
+    - layer: SetBond
+      arguments:
+      - [C5, O3, 0.0]
+      - [C5, C4, 2.0]
+      - [C4, C3, 1.0]
+      - [C3, C1, 1.0]
+      - [C1, C2, 1.0]
+      - [C2, O3, 2.0]
+- load: ./includes/uff.yaml
+- name: A9
+  run:
+    runner: CheckPoint
+    options:
+- run:
+    runner: Calculation
+    options:
+      working_directory: ./output
+      redirect_to:
+        replace: [A9, TSA8_9]
+      pre_format:
+        format: xyz
+        openbabel: true
+        export_map: true
+      pre_filename: P.xyz
+      stdout: XYZ_OUT
+      stderr: XYZ_ERR
+- load: ./includes/gasteiger_charges.yaml
