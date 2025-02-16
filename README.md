@@ -30,7 +30,9 @@ In the release package, serveral binary files are provided. You can put them in 
 The binary files should contain:
 
 - lmers: The main program of LME.
-- obabelme: Tools convert other molecular files between common format to LME format.    
+- obabelme: Tools convert other molecular files between common format to LME format.
+
+The binary files of x64 Linux platform is provided in releases. 
 
 ## Examples
 
