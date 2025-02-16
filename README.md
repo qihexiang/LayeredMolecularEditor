@@ -32,14 +32,14 @@ The binary files should contain:
 - lmers: The main program of LME.
 - obabelme: Tools convert other molecular files between common format to LME format.    
 
-### Other resources
+## Examples
 
-- `snippets` folder contains some bash or Python code snippets which might be useful to construct program integrate with LME.
+We provide here 3 examples of building chemical reaction datasets using LME placed in the examples directory.
 
-## Concepts
+1. classical DA reaction: `example/DA`
+2. Claisen rearrangement reaction: `example/Claisen`
+3. RuPNP catalyst catalyzed asymmetric ketone hydrogenation (AKH): `example/Ru`
 
-### Layers
+The optimized XYZ coordinates is provided in `output` directory of these folders.
 
-In this program, each molecular structure is described by a stack of the "modeling layers", which means molecular structures derived from the same template will share the same underlying stack. This mechanism saves storage space and preserve the correspondence between models when a large number of derived molecules are constructed.
-
-### Runners
+To reproduce the construction process of input files `lmers -i lme_workflow.inp.yaml` (Using `cargo run --bin lmers -- -i lme_workflow.inp.yaml` if you are working in a Rust programming environment) to complete the construction of the input file. The construction process requires Python and OpenBabel (conda is recommended) to be installed, and the build of AKH also requires XTB 6.7.1, and you need to make sure that these programs are installed on your system and can be called directly before running LME.
